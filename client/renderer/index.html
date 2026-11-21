@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; form-action 'none'; base-uri 'none'">
+  <title>Kiểm tra kết nối TCP</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="js/auth.js"></script>
+  <script defer src="js/contacts.js"></script>
+  <script defer src="js/chat.js"></script>
+  <script defer src="js/group.js"></script>
+  <script defer src="js/media.js"></script>
+  <script defer src="js/recorder.js"></script>
+  <script defer src="js/emoji.js"></script>
+  <script defer src="js/history.js"></script>
+  <script defer src="js/state.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <main>
+    <header><h1>Kết nối TCP</h1><span id="status" role="status">Chưa kết nối</span></header>
+    <form id="connection">
+      <label>Địa chỉ IP của Server<input id="host" value="127.0.0.1" required spellcheck="false"></label>
+      <label>Cổng<input id="port" type="number" min="1" max="65535" value="5000" required></label>
+      <button id="connect">Kết nối</button>
+    </form>
+    <section aria-labelledby="log-title">
+      <div class="toolbar"><h2 id="log-title">Nhật ký kết nối</h2><button id="ping" disabled>Gửi PING</button></div>
+      <div id="log" role="log" aria-live="polite" tabindex="0">
+        <p id="empty">Gói PING đầu tiên sẽ được gửi khi kết nối thành công.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

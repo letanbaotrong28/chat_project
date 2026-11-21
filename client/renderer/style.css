@@ -1,0 +1,45 @@
+:root {
+  font: 16px "Inter", "Segoe UI", sans-serif;
+  color: #183532;
+  background: #f4f7f6;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 880px; margin: auto; padding: clamp(20px, 5vw, 44px); }
+header, .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { margin: 0; font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.04em; }
+h2 { margin: 0; font-size: 19px; }
+#status { font-size: 14px; color: #54645f; }
+#status::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px;
+  border-radius: 50%; background: #84938d;
+}
+#status[data-state="connected"]::before { background: #00836c; }
+#status[data-state="connecting"]::before { background: #c77911; }
+form {
+  display: grid; grid-template-columns: minmax(0, 1fr) 100px auto; align-items: end;
+  gap: 16px; padding: 22px; margin: 24px 0 30px;
+  background: white; border: 1px solid #d3dfda; border-radius: 12px;
+}
+label { display: grid; gap: 7px; font-size: 14px; font-weight: 600; }
+input, button { font: inherit; border-radius: 7px; min-height: 40px; }
+input { width: 100%; padding: 8px 12px; border: 1px solid #a4b5ad; }
+button { cursor: pointer; padding: 8px 18px; border: 1px solid #126451; background: #146853; color: white; font-weight: 600; }
+button:hover:enabled { background: #0d5442; }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 3px solid #299a89; outline-offset: 2px; }
+#ping { min-height: 34px; padding: 5px 12px; font-size: 14px; }
+#log {
+  height: clamp(180px, 40vh, 380px); overflow: auto; padding: 15px 18px; margin-top: 12px;
+  background: #152a29; border-radius: 10px; color: #e2eeea;
+  font: 14px/1.65 "IBM Plex Mono", Consolas, monospace;
+}
+#log p { margin: 0 0 6px; overflow-wrap: anywhere; }
+#empty { color: #a7beb9; }
+#log strong { color: #8fddc8; }
+#log [data-kind="error"] strong { color: #ffb6a6; }
+@media (max-width: 560px) {
+  form { grid-template-columns: minmax(0, 1fr) 85px; }
+  #connect { grid-column: 1 / -1; }
+}
