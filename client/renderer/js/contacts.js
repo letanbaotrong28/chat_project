@@ -13,6 +13,7 @@ function initContacts(chat) {
     if (user.status === 'online' || user.status === 'offline') {
       users.set(user.username, user.status);
       chat.updatePresence(user.username, user.status);
+      if (user.unread) chat.markUnread(user.username);
     }
   }
 

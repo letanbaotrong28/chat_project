@@ -3,6 +3,7 @@ const os = require('node:os');
 const { HOST, PORT } = require('./config');
 const db = require('./db');
 const { contactPages, endSession } = require('./handlers/state');
+const { openInbox, closeInbox } = require('./handlers/message');
 const { route } = require('./router');
 const { TYPES, encode, createPacketReader } = require('../common/protocol');
 
@@ -17,6 +18,7 @@ async function serve(socket) {
   console.log('Kết nối:', peer);
   socket.on('error', error => console.warn(peer, error.code || error.name));
   socket.on('close', () => {
+    closeInbox(socket);
     endSession(socket);
     console.log('Ngắt kết nối:', peer);
   });
@@ -29,12 +31,14 @@ async function serve(socket) {
         if (socket.destroyed) return;
         const reply = await route(socket, packet);
         if (socket.destroyed) return;
+        if (reply.type === TYPES.LOGOUT) closeInbox(socket);
         await sendPacket(socket, reply);
         if (reply.type === TYPES.LOGIN) {
           for (const page of contactPages(reply.from)) {
             if (socket.destroyed) return;
             await sendPacket(socket, page);
           }
+          openInbox(socket, reply.from);
         }
       }
     }

@@ -63,7 +63,9 @@ function createNetwork(notify) {
     register: (name, password) => authenticate(TYPES.REGISTER, name, password),
     login: (name, password) => authenticate(TYPES.LOGIN, name, password),
     logout: () => send({ type: TYPES.LOGOUT }),
-    message: (to, content) => send({ type: TYPES.MSG, to, content })
+    message: (to, content) => send({ type: TYPES.MSG, to, content }),
+    acknowledge: (id, status) => send({ type: TYPES.ACK, id, status }),
+    history: (peer, beforeId, requestId) => send({ type: TYPES.HISTORY_REQ, peer, beforeId, requestId })
   };
 }
 module.exports = { createNetwork };

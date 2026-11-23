@@ -24,6 +24,17 @@ ipcMain.handle('chat:message', (event, to, content) => {
   checkSender(event);
   network.message(to, content);
 });
+ipcMain.handle('chat:history', (event, peer, beforeId, requestId) => {
+  checkSender(event);
+  network.history(peer, beforeId, requestId);
+});
+ipcMain.handle('chat:ack', (event, id, status) => {
+  checkSender(event);
+  if (!Number.isSafeInteger(id) || id <= 0 || !['received', 'seen'].includes(status)) {
+    throw new Error('Xác nhận tin nhắn không hợp lệ.');
+  }
+  network.acknowledge(id, status);
+});
 for (const action of ['register', 'login', 'logout']) {
   ipcMain.handle('auth:' + action, (event, username, password) => {
     checkSender(event);

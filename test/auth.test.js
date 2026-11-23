@@ -223,7 +223,8 @@ test('Tài khoản và phiên qua TCP', { timeout: 30000 }, async t => {
     assert.deepEqual(await receiver.nextReply(), echo);
     assert.equal((await observer.send(ping))[0].type, 'PING');
     const row = db.prepare(`
-      SELECT m.id, m.type, s.username AS "from", r.username AS "to", m.content, m.time
+      SELECT m.id, m.type, s.username AS "from", r.username AS "to", m.content, m.time,
+        CASE WHEN m.status = 'queued' THEN 'sent' ELSE m.status END AS status
       FROM messages m JOIN users s ON s.id = m.sender_id JOIN users r ON r.id = m.receiver_id
       WHERE m.id = ? AND m.group_id IS NULL
     `).get(echo.id);
@@ -231,15 +232,122 @@ test('Tài khoản và phiên qua TCP', { timeout: 30000 }, async t => {
     const [answer] = await receiver.send({ type: 'MSG', to: creds.username, content: 'Chào lại!' });
     assert.deepEqual(await sender.nextReply(), answer);
     assert.equal(answer.from, 'An');
+    await sender.send({ type: 'ACK', id: answer.id, status: 'received' });
+    await receiver.nextReply();
     for (const invalid of [{ content: '  ' }, { content: 5 }, { content: '👋'.repeat(4097) }, { to: creds.username }]) {
       const [error] = await sender.send({ ...msg, ...invalid });
       assert.equal(error.code, 'INVALID_INPUT');
       assert.equal(error.requestType, 'MSG');
     }
     await receiver.send(logout);
-    assert.equal((await sender.send(msg))[0].code, 'RECIPIENT_UNAVAILABLE');
+    const [offline] = await sender.send(msg);
+    assert.equal(offline.type, 'MSG');
+    assert.equal(db.prepare('SELECT status FROM messages WHERE id=?').pluck().get(offline.id), 'queued');
     assert.equal((await sender.send({ ...msg, to: 'absent' }))[0].code, 'RECIPIENT_UNAVAILABLE');
-    assert.equal(count(), before + 2);
+    assert.equal(count(), before + 3);
     assert.equal((await observer.send(ping))[0].type, 'PING');
+    await sender.send(logout);
+    await observer.send(logout);
+  });
+
+  await t.test('Tin offline và lịch sử riêng tư: phân trang ổn định khi có tin mới', async () => {
+    const a = await connect(server.address().port, sockets);
+    const b = await connect(server.address().port, sockets);
+    const c = await connect(server.address().port, sockets);
+    const alice = { ...login, username: 'An5' };
+    const bob = { ...login, username: 'Bình5' };
+    const history = { type: 'HISTORY_REQ', peer: bob.username, requestId: 44 };
+    assert.equal((await c.send({ ...history, from: alice.username }))[0].code, 'NOT_LOGGED_IN');
+    await a.send({ ...alice, type: 'REGISTER' }, alice);
+    await b.send({ ...bob, type: 'REGISTER' });
+    const maxText = '\u0001'.repeat(16384); // Khi mã hoá JSON, mỗi byte nội dung cần tới 6 byte.
+    const expected = [];
+    for (let i = 0; i < 23; i++) {
+      const [echo] = await a.send({ type: 'MSG', to: bob.username, content: i >= 13 ? maxText : 'Tin ' + i });
+      assert.equal(echo.type, 'MSG');
+      expected.push(echo);
+    }
+    await b.send(bob);
+    for (const stored of expected) {
+      const { backlog, ...replayed } = await b.nextReply();
+      assert.equal(backlog, true);
+      assert.deepEqual(replayed, stored);
+    }
+    const [latest] = await a.send(history);
+    assert.equal(latest.type, 'HISTORY');
+    assert.equal(latest.requestId, 44);
+    assert.deepEqual(latest.messages, expected.slice(-10));
+    const [live] = await b.send({ type: 'MSG', to: alice.username, content: 'Mới hơn trang đầu' });
+    assert.deepEqual(await a.nextReply(), live);
+    const [older] = await a.send({ ...history, beforeId: latest.nextBeforeId });
+    const [oldest] = await a.send({ ...history, beforeId: older.nextBeforeId });
+    assert.deepEqual([...oldest.messages, ...older.messages, ...latest.messages], expected);
+    assert.equal(oldest.nextBeforeId, null);
+    for (const beforeId of [-1, 0, 1.2, '9']) {
+      const [bad] = await a.send({ ...history, beforeId });
+      assert.equal(bad.code, 'INVALID_INPUT');
+      assert.equal(bad.requestId, 44);
+    }
+    await c.send(login);
+    const [privatePage] = await c.send({ ...history, from: alice.username });
+    assert.deepEqual(privatePage.messages, []);
+    assert.equal((await c.send(history))[0].messages.length, 0);
+    await a.send(logout);
+    await b.send(...expected.map(msg => ({ type: 'ACK', id: msg.id, status: 'received' })));
+    await b.send(logout, bob);
+    // Lần đăng nhập sau chỉ nhận tin mới. Các tin đã chuyển vẫn đọc lại được.
+    assert.equal((await b.send(ping))[0].type, 'PING');
+    const [afterLogin] = await b.send({ ...history, peer: alice.username });
+    assert.deepEqual(afterLogin.messages.at(-1), live);
+  });
+
+  await t.test('ACK riêng tư, không lùi trạng thái, phát lại khi mất kết nối trước ACK', async () => {
+    const sender = await connect(server.address().port, sockets);
+    let receiver = await connect(server.address().port, sockets);
+    const third = await connect(server.address().port, sockets);
+    const guest = await connect(server.address().port, sockets);
+    const alice = { ...login, username: 'An6' };
+    const bob = { ...login, username: 'Bình6' };
+    const history = { type: 'HISTORY_REQ', peer: bob.username };
+    await sender.send({ ...alice, type: 'REGISTER' }, alice);
+    await receiver.send({ ...bob, type: 'REGISTER' });
+    await third.send({ ...register, username: 'Chi6' }, { ...login, username: 'Chi6' });
+    const [msg] = await sender.send({ type: 'MSG', to: bob.username, content: 'Tin cần xác nhận' });
+    const received = { type: 'ACK', id: msg.id, status: 'received' };
+    const seen = { ...received, status: 'seen' };
+    assert.equal(msg.status, 'sent');
+    assert.equal((await guest.send(received))[0].code, 'NOT_LOGGED_IN');
+    assert.equal((await sender.send(seen))[0].code, 'INVALID_INPUT');
+    assert.equal((await third.send({ ...seen, from: bob.username }))[0].code, 'INVALID_INPUT');
+    await receiver.send(bob);
+    assert.equal((await receiver.nextReply()).id, msg.id);
+    assert.equal((await sender.send(history))[0].messages[0].status, 'sent');
+    const closed = new Promise(resolve => sessions.get(bob.username).once('close', resolve));
+    receiver.socket.resetAndDestroy();
+    await closed;
+    receiver = await connect(server.address().port, sockets);
+    await receiver.send(bob);
+    assert.equal((await receiver.nextReply()).id, msg.id);
+    for (const bad of [{ id: -1 }, { id: 1.5 }, { status: 'sent' }, { id: 9999999 }]) {
+      assert.equal((await receiver.send({ ...received, ...bad }))[0].code, 'INVALID_INPUT');
+    }
+    for (const ack of [received, seen]) {
+      const [ok] = await receiver.send({ ...ack, from: 'giả', to: 'Chi6' });
+      assert.deepEqual([ok.type, ok.id, ok.status, ok.from, ok.to],
+        ['ACK', msg.id, ack.status, bob.username, alice.username]);
+      assert.deepEqual(await sender.nextReply(), ok);
+    }
+    for (const ack of [seen, received]) assert.equal((await receiver.send(ack))[0].status, 'seen');
+    assert.equal((await sender.send(ping))[0].type, 'PING');
+    assert.equal((await third.send(ping))[0].type, 'PING');
+    const [next] = await sender.send({ type: 'MSG', to: bob.username, content: 'Đọc sau' });
+    await receiver.nextReply();
+    await sender.send(logout);
+    await receiver.send({ ...seen, id: next.id });
+    await sender.send(alice);
+    const [page] = await sender.send(history);
+    assert.deepEqual(page.messages.map(m => [m.id, m.status]), [[msg.id, 'seen'], [next.id, 'seen']]);
+    await receiver.send(logout, bob);
+    assert.equal((await receiver.send(ping))[0].type, 'PING');
   });
 });

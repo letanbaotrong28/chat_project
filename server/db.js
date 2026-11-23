@@ -35,5 +35,9 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'sent',
     time TEXT NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS idx_private_history ON messages(sender_id, receiver_id, id)
+    WHERE group_id IS NULL AND type = 'MSG';
+  CREATE INDEX IF NOT EXISTS idx_private_queue ON messages(receiver_id, id)
+    WHERE group_id IS NULL AND type = 'MSG' AND status = 'queued';
 `);
 module.exports = db;

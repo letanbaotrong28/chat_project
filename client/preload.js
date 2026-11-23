@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('tcp', {
   connect: (host, port) => ipcRenderer.invoke('tcp:connect', host, port),
   ping: () => ipcRenderer.invoke('tcp:ping'),
   message: (to, content) => ipcRenderer.invoke('chat:message', to, content),
+  acknowledge: (id, status) => ipcRenderer.invoke('chat:ack', id, status),
+  history: (peer, beforeId, requestId) => ipcRenderer.invoke('chat:history', peer, beforeId, requestId),
   register: (name, password) => ipcRenderer.invoke('auth:register', name, password),
   login: (name, password) => ipcRenderer.invoke('auth:login', name, password),
   logout: () => ipcRenderer.invoke('auth:logout'),

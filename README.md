@@ -1,6 +1,6 @@
 # Khung ứng dụng chat TCP
 
-Client Electron gửi PING qua socket TCP đến Server Node.js. Nhật ký hiển thị cả gói gửi lẫn phản hồi, nên có thể kiểm tra một vòng truyền trước khi viết chức năng chat. Các bước dưới dùng PowerShell. [Hướng dẫn dựng lại và toàn văn từng tệp](docs/huong-dan-dung-khung.md)
+Client Electron hỗ trợ tài khoản, trạng thái online/offline và chat riêng qua TCP. SQLite lưu hội thoại, tin chờ và trạng thái **Đã gửi**, **Đã nhận**, **Đã xem** của từng tin nhắn. Các bước dưới dùng PowerShell. [Bản lưu tại mốc dựng khung PING](docs/huong-dan-dung-khung.md)
 
 ## A. Chuẩn bị môi trường
 
@@ -89,7 +89,8 @@ chat_project/
 │   ├── protocol.js
 │   └── constants.js
 ├── test/
-│   └── protocol.test.js
+│   ├── protocol.test.js
+│   └── auth.test.js
 ├── docs/
 ├── .gitignore
 └── README.md
@@ -130,7 +131,32 @@ Nhập `127.0.0.1`, cổng `5000`, bấm **Kết nối**. Client tự gửi PING
 {"type":"PING","from":null,"time":"2026-11-21T15:22:08.020Z"}
 ```
 
-`time` là giờ UTC do Server gán. `from` là tài khoản gắn với socket và hiện bằng `null` khi chưa đăng nhập. Các lệnh khác trả `ERROR` với `content` bằng `"chưa cài đặt"`. PING chỉ kiểm tra kết nối nên bảng tin nhắn vẫn trống.
+`time` là giờ UTC do Server gán. `from` là tài khoản gắn với socket và bằng `null` khi chưa đăng nhập.
+
+### Thử lịch sử và tin nhắn offline
+
+1. Chạy một Server và mở hai Client bằng `npm.cmd --prefix client start` ở hai terminal riêng. Kết nối, đăng ký hai tài khoản (ví dụ An và Bình), rồi đăng nhập.
+2. Cho Bình đăng xuất. An chọn **Bình** trong danh sách, nhập nội dung và bấm **Gửi**. Tin được lưu vào SQLite ngay cả khi Bình offline.
+3. Cho Bình đăng nhập lại. Nhãn **Tin mới** xuất hiện cạnh An. Bấm **An** để đọc hội thoại. Tin offline và tin đã trao đổi trước đó hiển thị theo thứ tự gửi.
+4. Với hội thoại có hơn 10 tin, khi mở lại phiên ứng dụng, bạn thấy 10 tin gần nhất. Cuộn lên đầu khung tin hoặc bấm **Tải tin cũ hơn** để đọc trang trước. Đổi qua lại giữa các hội thoại để kiểm tra nội dung riêng của từng người.
+5. Để thử lưu bền vững, gửi thêm một tin khi Bình offline, dừng rồi chạy lại Server, sau đó kết nối và đăng nhập lại. Cả lịch sử và hàng đợi đều dùng `server/data/chat.db`.
+
+Server dùng tài khoản của socket và trường `peer` để giới hạn lịch sử trong một hội thoại. `HISTORY_REQ` nhận `beforeId` tùy chọn. Gói `HISTORY` trả tối đa 10 tin từ cũ đến mới và `nextBeforeId` để lấy trang trước. Client dùng mã tin trong SQLite để gộp lịch sử với tin trực tiếp.
+
+### Phần 6. Thử trạng thái tin nhắn riêng
+
+Quan sát nhãn dưới tin nhắn ở cửa sổ của **An** khi thực hiện lần lượt các bước sau.
+
+| Thao tác | Nhãn An thấy |
+| --- | --- |
+| Bình đang đăng xuất. An gửi một tin cho Bình. | **Đã gửi** khi Server lưu tin vào SQLite. |
+| Bình đăng nhập và để nguyên danh sách liên hệ. | **Đã nhận** khi Client của Bình nhận tin và gửi xác nhận. Cạnh An xuất hiện **Tin mới**. |
+| Bình bấm vào An và cuộn đến tin trong cửa sổ đang sử dụng. | **Đã xem** khi tin xuất hiện trong vùng đang nhìn thấy. |
+| Bình thu nhỏ cửa sổ hoặc mở hội thoại khác. An gửi thêm một tin. | Tin mới dừng ở **Đã nhận** cho đến khi Bình trở lại và nhìn thấy tin trong hội thoại với An. |
+
+Khởi động lại Server, kết nối và đăng nhập lại bằng An rồi mở hội thoại với Bình. Các nhãn hiển thị theo trạng thái đã lưu trong `server/data/chat.db`.
+
+Client người nhận gửi gói `ACK` theo mã tin, ví dụ `{"type":"ACK","id":42,"status":"received"}`. Chỉ tài khoản nhận tin được cập nhật trạng thái của tin đó. Server giữ tin mới trong hàng đợi cho đến khi nhận ACK, nên nếu kết nối mất giữa chừng thì tin được chuyển lại ở lần đăng nhập sau. ACK đến muộn giữ nguyên mức xác nhận cao nhất. Phần 6 dùng lại cột `messages.status` có sẵn. Tin cũ mang giá trị `sent` hiển thị **Đã gửi** cho đến khi có xác nhận từ Client người nhận.
 
 **Đường đi của gói.** Giao diện gọi preload qua `contextBridge`. Tiến trình chính nhận IPC và dùng `net` mở TCP. Mỗi gói gồm 4 byte UInt32BE ghi số byte của phần JSON UTF-8, kế tiếp là JSON. Mỗi socket có bộ giải mã riêng, tiếp tục đọc khi thiếu byte và đọc tiếp gói sau nếu còn dữ liệu. Hai đầu đóng socket khi thấy độ dài vượt 1 MiB. Khối tệp dành cho bước sau có kích thước 64 KiB.
 
@@ -156,7 +182,7 @@ Nếu phải biên dịch mô-đun SQLite từ nguồn trên Windows, cài Pytho
 Tại thư mục gốc `chat_project`, chạy:
 
 ```powershell
-node test/protocol.test.js
+node --test test/protocol.test.js test/auth.test.js
 ```
 
 - [ ] Server in `listening on 0.0.0.0:5000` và IP LAN.
@@ -165,4 +191,7 @@ node test/protocol.test.js
 - [ ] Đóng đột ngột Client. Server vẫn chạy và trả PING khi mở Client kết nối lại.
 - [ ] Kiểm thử giao thức in ba dòng **Đạt** cho gói dính, gói bị cắt và gói vượt giới hạn.
 
-Bước kế tiếp là viết REGISTER và LOGIN bằng bcryptjs, gắn tài khoản vào socket qua `sessions.add`, rồi phát STATE khi đăng nhập, đăng xuất hoặc mất kết nối.
+- [ ] Tin gửi khi người nhận offline xuất hiện khi họ đăng nhập lại. Lịch sử cũ tải đúng thứ tự qua nhiều trang và mỗi tin chỉ xuất hiện một lần.
+- [ ] Một tin gửi cho người đang offline lần lượt hiện **Đã gửi**, **Đã nhận**, **Đã xem** khi người đó đăng nhập rồi mở tin. Nhãn **Đã xem** vẫn hiện sau khi khởi động lại Server.
+
+Bước kế tiếp là chat nhóm, gồm tạo nhóm, thêm thành viên và gửi tin nhắn trong nhóm.

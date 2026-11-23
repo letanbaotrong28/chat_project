@@ -37,7 +37,7 @@ window.tcp.onEvent(event => {
     connectionError.hidden = false;
     logLine('LỖI', event.message, event.kind);
   } else {
-    const summary = event.packet.type === 'MSG' ? 'MSG' : JSON.stringify(event.packet);
+    const summary = ['MSG', 'HISTORY'].includes(event.packet.type) ? event.packet.type : JSON.stringify(event.packet);
     logLine(event.kind === 'sent' ? 'GỬI' : 'NHẬN', summary, event.kind);
   }
 });
