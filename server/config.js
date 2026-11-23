@@ -5,7 +5,7 @@ const PORT = Number(process.env.PORT ?? DEFAULT_PORT);
 if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
   throw new RangeError('PORT phải là số nguyên từ 1 đến 65535.');
 }
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.CHAT_DATA_DIR || path.join(__dirname, 'data');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const UPLOAD_DIRS = Object.fromEntries(
   ['files', 'images', 'videos', 'sounds'].map(name => [name, path.join(UPLOAD_DIR, name)])

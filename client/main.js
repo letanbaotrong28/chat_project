@@ -20,10 +20,16 @@ ipcMain.handle('tcp:ping', event => {
   checkSender(event);
   network.ping();
 });
+for (const action of ['register', 'login', 'logout']) {
+  ipcMain.handle('auth:' + action, (event, username, password) => {
+    checkSender(event);
+    network[action](username, password);
+  });
+}
 
 function openWindow() {
   window = new BrowserWindow({
-    title: 'Kiểm tra kết nối TCP', width: 820, height: 620, minWidth: 420, minHeight: 440,
+    title: 'Chat LAN', width: 820, height: 740, minWidth: 420, minHeight: 440,
     backgroundColor: '#f4f7f6', autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

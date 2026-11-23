@@ -17,7 +17,7 @@ h2 { margin: 0; font-size: 19px; }
 }
 #status[data-state="connected"]::before { background: #00836c; }
 #status[data-state="connecting"]::before { background: #c77911; }
-form {
+#connection {
   display: grid; grid-template-columns: minmax(0, 1fr) 100px auto; align-items: end;
   gap: 16px; padding: 22px; margin: 24px 0 30px;
   background: white; border: 1px solid #d3dfda; border-radius: 12px;
@@ -40,6 +40,38 @@ button:disabled { opacity: .5; cursor: default; }
 #log strong { color: #8fddc8; }
 #log [data-kind="error"] strong { color: #ffb6a6; }
 @media (max-width: 560px) {
-  form { grid-template-columns: minmax(0, 1fr) 85px; }
+  #connection { grid-template-columns: minmax(0, 1fr) 85px; }
   #connect { grid-column: 1 / -1; }
 }
+[hidden] { display: none !important; }
+#connection { margin-bottom: 16px; }
+#status { background: #e6eeea; border-radius: 20px; padding: 6px 12px; }
+.account {
+  padding: clamp(20px, 4vw, 32px); border: 1px solid #d3dfda;
+  border-radius: 12px; background: white;
+}
+.account h2 { font-size: 24px; margin-bottom: 18px; }
+#auth-form { display: grid; gap: 14px; }
+#auth-mode {
+  display: flex; gap: 4px; padding: 4px; margin: 0 0 4px;
+  border: 0; border-radius: 8px; background: #ecf2ef; width: fit-content;
+}
+#auth-mode label { position: relative; cursor: pointer; }
+#auth-mode span { padding: 6px 16px; border-radius: 5px; }
+#auth-mode input:checked + span { background: #fff; box-shadow: 0 1px 3px #243c3226; }
+#auth-mode input:focus-visible + span { outline: 2px solid #299a89; }
+.sr-only, #auth-mode input {
+  position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+#auth-submit { justify-self: start; min-width: 140px; }
+#auth-feedback, #password-rule { color: #51655d; font-size: 14px; }
+#auth-feedback { margin: 14px 0 0; }
+#auth-feedback:empty { display: none; }
+#auth-feedback[data-error="true"], #connection-error { color: #9e3026; }
+#session { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.session-label { display: block; font-size: 14px; color: #51655d; }
+#session-name { display: block; font-size: 22px; overflow-wrap: anywhere; }
+details { margin-top: 20px; }
+summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+details[open] #ping { margin-top: 8px; }

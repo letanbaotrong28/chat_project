@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; form-action 'none'; base-uri 'none'">
-  <title>Kiểm tra kết nối TCP</title>
+  <title>Chat LAN</title>
   <link rel="stylesheet" href="style.css">
   <script defer src="js/auth.js"></script>
   <script defer src="js/contacts.js"></script>
@@ -19,18 +19,39 @@
 </head>
 <body>
   <main>
-    <header><h1>Kết nối TCP</h1><span id="status" role="status">Chưa kết nối</span></header>
+    <header><h1>Chat LAN</h1><span id="status" role="status">Chưa kết nối</span></header>
     <form id="connection">
       <label>Địa chỉ IP của Server<input id="host" value="127.0.0.1" required spellcheck="false"></label>
       <label>Cổng<input id="port" type="number" min="1" max="65535" value="5000" required></label>
       <button id="connect">Kết nối</button>
     </form>
-    <section aria-labelledby="log-title">
-      <div class="toolbar"><h2 id="log-title">Nhật ký kết nối</h2><button id="ping" disabled>Gửi PING</button></div>
+    <p id="connection-error" role="alert" hidden></p>
+    <section class="account" aria-labelledby="account-title">
+      <h2 id="account-title">Tài khoản</h2>
+      <form id="auth-form">
+        <fieldset id="auth-mode">
+          <legend class="sr-only">Thao tác tài khoản</legend>
+          <label><input type="radio" name="mode" value="login" checked><span>Đăng nhập</span></label>
+          <label><input type="radio" name="mode" value="register"><span>Đăng ký</span></label>
+        </fieldset>
+        <label>Tên tài khoản<input id="username" autocomplete="username" required spellcheck="false"></label>
+        <label>Mật khẩu<input id="password" type="password" autocomplete="current-password" required></label>
+        <small id="password-rule" hidden>Ít nhất 8 ký tự, tối đa 72 byte UTF-8.</small>
+        <button id="auth-submit" disabled>Đăng nhập</button>
+      </form>
+      <div id="session" hidden>
+        <div><span class="session-label">Đang đăng nhập</span><strong id="session-name"></strong></div>
+        <button id="logout" type="button">Đăng xuất</button>
+      </div>
+      <p id="auth-feedback" role="status">Kết nối đến Server để sử dụng tài khoản.</p>
+    </section>
+    <details>
+      <summary>Nhật ký kết nối</summary>
+      <button id="ping" disabled>Gửi PING</button>
       <div id="log" role="log" aria-live="polite" tabindex="0">
         <p id="empty">Gói PING đầu tiên sẽ được gửi khi kết nối thành công.</p>
       </div>
-    </section>
+    </details>
   </main>
 </body>
 </html>

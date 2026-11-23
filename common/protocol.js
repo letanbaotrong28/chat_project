@@ -46,11 +46,11 @@ function decode(frame) {
   return readBody(frame.subarray(4));
 }
 
-function createDecoder(onMessage) {
+function createPacketReader() {
   const header = Buffer.alloc(4);
   let target = header;
   let filled = 0;
-  return function push(chunk) {
+  return function* read(chunk) {
     let offset = 0;
     while (offset < chunk.length) {
       // Mỗi lần chỉ lấy đủ cho phần đang đọc. Giữ phần dở sang lần nhận tiếp.
@@ -67,10 +67,17 @@ function createDecoder(onMessage) {
       } else {
         const body = target;
         target = header; // Các byte còn lại trong chunk có thể thuộc gói kế tiếp.
-        onMessage(readBody(body));
+        yield readBody(body);
       }
     }
   };
 }
 
-module.exports = { TYPES, encode, decode, createDecoder };
+function createDecoder(onMessage) {
+  const read = createPacketReader();
+  return chunk => {
+    for (const packet of read(chunk)) onMessage(packet);
+  };
+}
+
+module.exports = { TYPES, encode, decode, createDecoder, createPacketReader };
