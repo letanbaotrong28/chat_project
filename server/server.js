@@ -4,7 +4,8 @@ const { HOST, PORT } = require('./config');
 const db = require('./db');
 const { contactPages, endSession } = require('./handlers/state');
 const { openInbox, closeInbox } = require('./handlers/message');
-const { groupsForLogin } = require('./handlers/group');
+const { groupsForLogin, cleanDeletedFiles } = require('./handlers/group');
+const { endFileSession } = require('./handlers/file');
 const { route } = require('./router');
 const { TYPES, encode, createPacketReader } = require('../common/protocol');
 
@@ -32,7 +33,10 @@ async function serve(socket) {
         if (socket.destroyed) return;
         const reply = await route(socket, packet);
         if (socket.destroyed) return;
-        if (reply.type === TYPES.LOGOUT) closeInbox(socket);
+        if (reply.type === TYPES.LOGOUT) {
+          closeInbox(socket);
+          await endFileSession(socket);
+        }
         await sendPacket(socket, reply);
         if (reply.type === TYPES.LOGIN) {
           for (const page of contactPages(reply.from)) {
@@ -50,10 +54,14 @@ async function serve(socket) {
     socket.end();
   } catch (error) {
     socket.destroy(error);
+  } finally {
+    // Chờ thao tác ghi cuối cùng kết thúc trước khi dọn tệp tạm của socket.
+    await endFileSession(socket).catch(error => console.warn('Không dọn được tệp tạm:', error.code));
   }
 }
 
 function createChatServer() {
+  cleanDeletedFiles().catch(error => console.warn('Lỗi dọn tệp nhóm:', error.message));
   return net.createServer({ allowHalfOpen: true }, serve);
 }
 

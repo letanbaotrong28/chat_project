@@ -35,12 +35,31 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'sent',
     time TEXT NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS idx_private_history ON messages(sender_id, receiver_id, id)
-    WHERE group_id IS NULL AND type = 'MSG';
-  CREATE INDEX IF NOT EXISTS idx_private_queue ON messages(receiver_id, id)
-    WHERE group_id IS NULL AND type = 'MSG' AND status = 'queued';
-  CREATE INDEX IF NOT EXISTS idx_group_history ON messages(group_id, id)
-    WHERE group_id IS NOT NULL AND type = 'MSG';
+  CREATE INDEX IF NOT EXISTS idx_chat_private_history ON messages(sender_id, receiver_id, id)
+    WHERE group_id IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_chat_private_queue ON messages(receiver_id, id)
+    WHERE group_id IS NULL AND status = 'queued';
+  CREATE INDEX IF NOT EXISTS idx_chat_group_history ON messages(group_id, id)
+    WHERE group_id IS NOT NULL;
+  DROP INDEX IF EXISTS idx_private_history;
+  DROP INDEX IF EXISTS idx_private_queue;
+  DROP INDEX IF EXISTS idx_group_history;
   CREATE INDEX IF NOT EXISTS idx_groups_by_user ON group_members(user_id, group_id);
+  -- Giữ mã đã cấp để một yêu cầu cũ không thể trỏ vào nhóm hoặc tệp mới.
+  CREATE TABLE IF NOT EXISTS deleted_chat_ids (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    group_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL
+  );
+  INSERT OR IGNORE INTO deleted_chat_ids VALUES (1, 0, 0);
+  CREATE VIEW IF NOT EXISTS next_chat_ids AS
+    SELECT 1 + MAX(group_id, COALESCE((SELECT MAX(id) FROM groups), 0)) AS group_id,
+           1 + MAX(message_id, COALESCE((SELECT MAX(id) FROM messages), 0)) AS message_id
+    FROM deleted_chat_ids;
+  CREATE TABLE IF NOT EXISTS pending_file_deletions (
+    type TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    PRIMARY KEY (type, file_path)
+  );
 `);
 module.exports = db;

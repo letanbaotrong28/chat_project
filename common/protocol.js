@@ -1,7 +1,7 @@
 const { MAX_PACKET_BYTES, ERROR_CODES } = require('./constants');
 
 const names = [
-  'REGISTER', 'LOGIN', 'LOGOUT', 'MSG', 'GROUP_CREATE', 'GROUP_ADD', 'FILE',
+  'REGISTER', 'LOGIN', 'LOGOUT', 'MSG', 'GROUP_CREATE', 'GROUP_ADD', 'GROUP_DELETE', 'FILE',
   'IMAGE', 'VIDEO', 'SOUND', 'STATE', 'ACK', 'HISTORY_REQ', 'HISTORY', 'PEER_REQ',
   'PEER_INFO', 'ERROR', 'PING'
 ];

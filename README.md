@@ -65,6 +65,7 @@ chat_project/
 │   ├── network.js
 │   ├── p2p.js
 │   ├── fileTransfer.js
+│   ├── mediaPreview.js
 │   ├── renderer/
 │   │   ├── index.html
 │   │   ├── style.css
@@ -87,10 +88,13 @@ chat_project/
 │   └── package.json
 ├── common/
 │   ├── protocol.js
+│   ├── file.js
+│   ├── media.js
 │   └── constants.js
 ├── test/
 │   ├── protocol.test.js
-│   └── auth.test.js
+│   ├── auth.test.js
+│   └── file.test.js
 ├── docs/
 ├── .gitignore
 └── README.md
@@ -158,7 +162,7 @@ Khởi động lại Server, kết nối và đăng nhập lại bằng An rồi
 
 Client người nhận gửi gói `ACK` theo mã tin, ví dụ `{"type":"ACK","id":42,"status":"received"}`. Chỉ tài khoản nhận tin được cập nhật trạng thái của tin đó. Server giữ tin mới trong hàng đợi cho đến khi nhận ACK, nên nếu kết nối mất giữa chừng thì tin được chuyển lại ở lần đăng nhập sau. ACK đến muộn giữ nguyên mức xác nhận cao nhất. Phần 6 dùng lại cột `messages.status` có sẵn. Tin cũ mang giá trị `sent` hiển thị **Đã gửi** cho đến khi có xác nhận từ Client người nhận.
 
-**Đường đi của gói.** Giao diện gọi preload qua `contextBridge`. Tiến trình chính nhận IPC và dùng `net` mở TCP. Mỗi gói gồm 4 byte UInt32BE ghi số byte của phần JSON UTF-8, kế tiếp là JSON. Mỗi socket có bộ giải mã riêng, tiếp tục đọc khi thiếu byte và đọc tiếp gói sau nếu còn dữ liệu. Hai đầu đóng socket khi thấy độ dài vượt 1 MiB. Khối tệp dành cho bước sau có kích thước 64 KiB.
+**Đường đi của gói.** Giao diện gọi preload qua `contextBridge`. Tiến trình chính nhận IPC và dùng `net` mở TCP. Mỗi gói gồm 4 byte UInt32BE ghi số byte của phần JSON UTF-8, kế tiếp là JSON. Mỗi socket có bộ giải mã riêng, tiếp tục đọc khi thiếu byte và đọc tiếp gói sau nếu còn dữ liệu. Hai đầu đóng socket khi thấy độ dài vượt 1 MiB. Mỗi khối truyền tệp chứa tối đa 64 KiB dữ liệu gốc.
 
 ### Phần 7. Thử chat nhóm
 
@@ -167,6 +171,7 @@ Client người nhận gửi gói `ACK` theo mã tin, ví dụ `{"type":"ACK","i
 3. Nhập tên tài khoản của Bình ở ô **Tài khoản cần thêm** rồi bấm **Thêm thành viên**. Nếu Bình đang online, nhóm xuất hiện ngay trong danh sách của Bình. Nếu Bình đang offline, nhóm xuất hiện ở lần đăng nhập tiếp theo.
 4. An gửi tin vào nhóm. Bình bấm **Nhóm đồ án**, đọc tin rồi gửi trả lời. Mỗi tin hiển thị người gửi và thời gian. Khi hai nhóm trùng tên, dùng số `#` dưới tên để phân biệt.
 5. Cho Bình đăng xuất, gửi thêm một tin từ An rồi đăng nhập lại bằng Bình. Mở nhóm để đọc tin đã bỏ lỡ. Với hơn 10 tin, bấm **Tải tin cũ hơn** để đọc trang trước.
+6. Để thử xóa, dùng một nhóm thử nghiệm. Chủ nhóm mở hội thoại, bấm **Xóa nhóm**, kiểm tra tên nhóm rồi xác nhận. Nhóm biến mất ở tất cả thành viên. Server xóa lịch sử và tệp đính kèm của nhóm. Các bản đã tải về máy vẫn nằm ở nơi người dùng đã lưu.
 
 Chủ nhóm có quyền thêm thành viên. Mỗi thành viên có thể gửi tin và xem toàn bộ lịch sử, kể cả tin trước thời điểm được thêm. Server kiểm tra thành viên theo tài khoản đã đăng nhập cho mỗi lần gửi và tải lịch sử. Gói `MSG` và `HISTORY_REQ` dùng `groupId` để xác định nhóm. Dữ liệu dùng các bảng `groups`, `group_members` và `messages` trong database hiện tại.
 
@@ -175,6 +180,30 @@ Chủ nhóm có quyền thêm thành viên. Mỗi thành viên có thể gửi t
 1. Đăng nhập hai tài khoản trên hai Client và mở một cuộc chat riêng. Gõ `Chào bạn`, đặt con trỏ sau chữ `Chào`, bấm **Emoji** rồi chọn 👋. Ô soạn tin sẽ hiện `Chào👋 bạn`. Bấm **Gửi** và kiểm tra nội dung ở Client còn lại.
 2. Trong chat nhóm, bôi đen một từ rồi chọn emoji để thay thế từ đó. Bạn cũng có thể gửi một tin chỉ gồm emoji, chẳng hạn `❤️🧑‍💻`. Đăng xuất, đăng nhập lại và mở lịch sử để kiểm tra dấu tiếng Việt và emoji ghép.
 3. Để dùng bàn phím, nhấn **Tab** đến nút **Emoji**, nhấn **Enter** để mở bảng, dùng các phím mũi tên để di chuyển và **Enter** để chèn. **Esc** đóng bảng và giữ nguyên bản nháp.
+
+### Phần 9. Gửi và tải tệp
+
+1. Mở một Server và hai Client theo mục D. Từ cửa sổ của An, mở chat với Bình hoặc một nhóm có Bình, bấm **Gửi tệp** rồi chọn một tệp. Dùng tệp vài MiB để dễ quan sát phần trăm tiến trình. Khi hiện **SHA-256 khớp**, tệp đã được lưu trên Server.
+2. Từ cửa sổ của Bình, bấm **Tải tệp** dưới tên tệp và chọn nơi lưu. Hộp thoại gợi ý thư mục `client/downloads/`. Sau khi tải đủ và đối chiếu SHA-256, Client hiển thị đường dẫn đã lưu.
+3. Thử cho Bình đăng xuất trước khi An gửi. Khi Bình đăng nhập lại, mở hội thoại và tải từ lịch sử. Có thể khởi động lại Server giữa hai lần đăng nhập để kiểm tra việc lưu tệp.
+4. Để thử ngắt giữa chừng, đóng Client gửi khi tệp còn đang truyền. Kết nối lại và chọn gửi lại từ đầu. Nếu quá trình tải xuống bị gián đoạn hoặc checksum sai, Client giữ nguyên tệp đích đã có.
+
+Server ghép từng khối 64 KiB trong `server/uploads/files/`, kiểm tra SHA-256 rồi ghi thông tin tệp vào SQLite. Mỗi tệp có một mã lưu riêng nên hai tệp cùng tên vẫn tải đúng nội dung. Khi sao lưu, giữ cả `server/data/chat.db` và `server/uploads/files/`. Với tin riêng, **Đã nhận** và **Đã xem** áp dụng cho tin chứa tệp. Người nhận bấm **Tải tệp** để lưu bản sao về máy.
+
+Có thể kiểm tra độc lập bằng PowerShell ở hai máy. Thay đường dẫn tương ứng rồi so sánh hai giá trị `Hash`.
+
+```powershell
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\duong-dan\tep.zip'
+```
+
+### Phần 10. Ảnh, video, âm thanh và tin nhắn thoại
+
+1. Khởi động lại Server và hai Client theo mục D. Đăng nhập hai tài khoản, mở chat riêng hoặc một nhóm chung.
+2. Bấm **Gửi tệp** rồi chọn ảnh PNG, JPEG, GIF hoặc WebP. Ảnh hiện ngay trong hội thoại. Với video WebM, MP4 hoặc tệp âm thanh như WAV, MP3, người nhận bấm **Phát** trên trình phát trong tin nhắn. Việc phát phụ thuộc vào codec của tệp. Nút **Tải tệp** vẫn cho phép lưu bản gốc.
+3. Bấm **Ghi âm**, cho phép dùng micrô nếu hệ điều hành hỏi, sau đó bấm **Dừng ghi**. Nghe lại ngay trong ô soạn tin rồi chọn **Gửi bản ghi** hoặc **Hủy**. Mỗi bản ghi dùng WebM/Opus và tối đa 16 MiB. Khi đổi hội thoại hoặc đăng xuất, Client tắt micrô và bỏ bản nháp ghi âm.
+4. Thử gửi khi người nhận đang offline, rồi đăng nhập lại và mở lịch sử để xem ảnh hoặc phát tin thoại. Nếu Windows báo thiếu quyền ghi âm, kiểm tra quyền **Microphone access** và **Let desktop apps access your microphone** trong cài đặt quyền riêng tư của Windows.
+
+Server lưu nội dung mới vào `server/uploads/images/`, `videos/` và `sounds/` theo loại. Các tệp đã gửi ở phần 9 vẫn được đọc từ `server/uploads/files/`. Để sao lưu cả lịch sử và nội dung, giữ `server/data/chat.db` cùng toàn bộ thư mục `server/uploads/`. Client kiểm tra SHA-256 trước khi hiển thị hoặc phát bản xem trước.
 
 ## E. Demo trên hai máy
 
@@ -198,7 +227,7 @@ Nếu phải biên dịch mô-đun SQLite từ nguồn trên Windows, cài Pytho
 Tại thư mục gốc `chat_project`, chạy:
 
 ```powershell
-node --test test/protocol.test.js test/auth.test.js
+node --test test/protocol.test.js test/auth.test.js test/file.test.js
 ```
 
 - [ ] Server in `listening on 0.0.0.0:5000` và IP LAN.

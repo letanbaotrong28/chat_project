@@ -19,6 +19,8 @@ function initChat(onSelect) {
   let selectedGroup = null;
   let online = false;
   let pending = null;
+  let renderedConversation = null;
+  const files = initFileTransfers(() => peer);
 
   function conversation(name) {
     if (!conversations.has(name)) {
@@ -30,7 +32,7 @@ function initChat(onSelect) {
     return conversations.get(name);
   }
 
-  function appendMessage(packet) {
+  function appendMessage(packet, before = null) {
     const bubble = document.createElement('div');
     bubble.dataset.id = packet.id;
     bubble.className = packet.from === me ? 'bubble mine' : 'bubble';
@@ -43,10 +45,14 @@ function initChat(onSelect) {
     time.textContent = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     if (!today) time.textContent += ' · ' + date.toLocaleDateString('vi-VN');
     time.title = date.toLocaleString('vi-VN');
-    const text = document.createElement('p');
-    text.textContent = packet.content;
-    bubble.append(sender, time, text);
-    thread.append(bubble);
+    bubble.append(sender, time);
+    if (packet.file) files.decorate(bubble, packet);
+    else {
+      const text = document.createElement('p');
+      text.textContent = packet.content;
+      bubble.append(text);
+    }
+    thread.insertBefore(bubble, before);
     if (!packet.groupId) receipts.decorate(bubble, packet, me);
   }
 
@@ -76,9 +82,17 @@ function initChat(onSelect) {
     const top = thread.getBoundingClientRect().top;
     const anchor = !atBottom && Array.from(thread.children).find(el => el.getBoundingClientRect().bottom > top);
     const offset = anchor ? anchor.getBoundingClientRect().top - top : 0;
-    receipts.clearView();
-    thread.replaceChildren();
-    for (const item of Array.from(current.messages.values()).sort((a, b) => a.id - b.id)) appendMessage(item);
+    if (renderedConversation !== current) {
+      receipts.clearView();
+      thread.replaceChildren();
+      renderedConversation = current;
+    }
+    // Giữ nguyên trình phát đang chạy khi chèn thêm một trang lịch sử.
+    let next = thread.firstElementChild;
+    for (const item of Array.from(current.messages.values()).sort((a, b) => a.id - b.id)) {
+      if (Number(next?.dataset.id) === item.id) next = next.nextElementSibling;
+      else appendMessage(item, next);
+    }
     if (atBottom) thread.scrollTop = thread.scrollHeight;
     else if (anchor) {
       const same = thread.querySelector('[data-id="' + anchor.dataset.id + '"]');
@@ -118,6 +132,7 @@ function initChat(onSelect) {
   });
 
   function open(name, details) {
+    if (name !== peer) files.leaveChat();
     emojiPicker.close();
     peer = name;
     selectedGroup = typeof name === 'number' ? details : null;
@@ -154,7 +169,8 @@ function initChat(onSelect) {
     } catch {
       if (pending !== attempt) return;
       pending = null;
-      conversation(attempt.to).error = 'Gửi thất bại. Hãy kiểm tra kết nối.';
+      const current = conversations.get(attempt.to);
+      if (current) current.error = 'Gửi thất bại. Hãy kiểm tra kết nối.';
       refresh();
     }
   });
@@ -167,8 +183,10 @@ function initChat(onSelect) {
       selectedGroup = null;
       online = false;
       conversations.clear();
+      renderedConversation = null;
       history.reset();
       receipts.reset();
+      files.reset(me ? event.previewKey : null);
       input.value = '';
       thread.replaceChildren();
       refresh();
@@ -178,7 +196,8 @@ function initChat(onSelect) {
     history.receive(packet);
     receipts.onPacket(packet, me);
     if (packet.type === 'ERROR' && packet.requestType === 'MSG' && pending) {
-      conversation(pending.to).error = packet.content;
+      const current = conversations.get(pending.to);
+      if (current) current.error = packet.content;
       pending = null;
       refresh();
       return;
@@ -195,7 +214,7 @@ function initChat(onSelect) {
     }
     const exists = current.messages.has(packet.id);
     current.messages.set(packet.id, packet);
-    if (packet.from === me && pending?.to === other) {
+    if (!packet.file && packet.from === me && pending?.to === other) {
       current.draft = current.error = '';
       pending = null;
       if (peer === other) input.value = '';
@@ -212,6 +231,18 @@ function initChat(onSelect) {
   }
   return {
     onEvent, open, selected: () => peer, hasUnread: name => conversations.get(name)?.unread,
+    removeGroup(id) {
+      conversations.delete(id);
+      if (peer !== id) return;
+      files.leaveChat();
+      emojiPicker.close();
+      receipts.clearView();
+      peer = selectedGroup = renderedConversation = null;
+      input.value = '';
+      thread.replaceChildren();
+      refresh();
+      onSelect();
+    },
     markUnread(name) {
       if (peer !== name) conversation(name).unread = true;
     },

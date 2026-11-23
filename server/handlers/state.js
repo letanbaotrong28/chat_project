@@ -8,7 +8,7 @@ const selectPage = db.prepare(`
   SELECT u.id, u.username, EXISTS (
     SELECT 1 FROM messages m WHERE m.sender_id = u.id
       AND m.receiver_id = (SELECT id FROM users WHERE username = @self)
-      AND m.group_id IS NULL AND m.type = 'MSG' AND m.status IN ('queued', 'received')
+      AND m.group_id IS NULL AND m.type IN ('MSG', 'FILE', 'IMAGE', 'VIDEO', 'SOUND') AND m.status IN ('queued', 'received')
   ) AS unread FROM users u
   WHERE u.id > @afterId AND u.username <> @self ORDER BY u.id LIMIT @limit
 `);
@@ -45,13 +45,13 @@ function endSession(socket) {
 const advanceReceipt = db.prepare(`
   UPDATE messages SET status = @status
   WHERE id = @id AND receiver_id = (SELECT id FROM users WHERE username = @receiver)
-    AND type = 'MSG' AND group_id IS NULL
+    AND type IN ('MSG', 'FILE', 'IMAGE', 'VIDEO', 'SOUND') AND group_id IS NULL
     AND (status IN ('queued', 'sent') OR (status = 'received' AND @status = 'seen'))
 `);
 const findReceipt = db.prepare(`
   SELECT s.username AS sender, m.status FROM messages m
   JOIN users s ON s.id = m.sender_id JOIN users r ON r.id = m.receiver_id
-  WHERE m.id = ? AND r.username = ? AND m.type = 'MSG' AND m.group_id IS NULL
+  WHERE m.id = ? AND r.username = ? AND m.type IN ('MSG', 'FILE', 'IMAGE', 'VIDEO', 'SOUND') AND m.group_id IS NULL
 `);
 const recordReceipt = db.transaction((id, receiver, status) => {
   const changed = advanceReceipt.run({ id, receiver, status }).changes;

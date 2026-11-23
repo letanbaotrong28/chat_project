@@ -1,23 +1,30 @@
 const db = require('../db');
 const sessions = require('../sessions');
+const { storedFile } = require('../../common/media');
 const { sendGroupMessage } = require('./group');
 const { TYPES, encode } = require('../../common/protocol');
 const { MAX_MESSAGE_BYTES, ERROR_CODES } = require('../../common/constants');
 
 const insertMessage = db.prepare(`
-  INSERT INTO messages (sender_id, receiver_id, type, content, time, status)
-  SELECT sender.id, receiver.id, 'MSG', ?, ?, 'queued'
+  INSERT INTO messages (id, sender_id, receiver_id, type, content, time, status)
+  SELECT (SELECT message_id FROM next_chat_ids), sender.id, receiver.id, 'MSG', ?, ?, 'queued'
   FROM users AS sender, users AS receiver
   WHERE sender.username = ? AND receiver.username = ?
 `);
 const nextQueued = db.prepare(`
   SELECT m.id, m.type, s.username AS "from", r.username AS "to", m.content, m.time, 'sent' AS status
   FROM messages m JOIN users s ON s.id = m.sender_id JOIN users r ON r.id = m.receiver_id
-  WHERE r.username = ? AND m.id > ? AND m.status = 'queued' AND m.type = 'MSG' AND m.group_id IS NULL
+  WHERE r.username = ? AND m.id > ? AND m.status = 'queued' AND m.type IN ('MSG', 'FILE', 'IMAGE', 'VIDEO', 'SOUND') AND m.group_id IS NULL
   ORDER BY m.id LIMIT 1
 `);
 const lastId = db.prepare('SELECT MAX(id) FROM messages').pluck();
 const inboxes = new WeakMap();
+
+function asChatMessage(row) {
+  if (row.type === TYPES.MSG) return row;
+  const { content, ...message } = row;
+  return { ...message, type: TYPES.MSG, file: storedFile(content) };
+}
 
 async function flushInbox(socket, username) {
   const inbox = inboxes.get(socket);
@@ -30,7 +37,7 @@ async function flushInbox(socket, username) {
       if (!message) break;
       if (message.id <= inbox.backlogThrough) message.backlog = true;
       await new Promise((resolve, reject) => {
-        socket.write(encode(message), error => error ? reject(error) : resolve());
+        socket.write(encode(asChatMessage(message)), error => error ? reject(error) : resolve());
       });
       inbox.lastOffered = message.id;
     }
@@ -72,9 +79,13 @@ function sendMessage(_socket, { from, time, to, groupId, content }) {
     return { type: TYPES.ERROR, code: ERROR_CODES.RECIPIENT_UNAVAILABLE, content: 'Tài khoản nhận không tồn tại.' };
   }
   const message = { type: TYPES.MSG, id: saved.lastInsertRowid, from, to, time, content, status: 'sent' };
-  const receiver = sessions.get(to);
-  if (receiver) void flushInbox(receiver, to);
+  deliverPrivate(to);
   return message; // Bản trả về cho người gửi có cùng id và thời gian với bản chuyển tiếp.
 }
 
-module.exports = { sendMessage, openInbox, closeInbox };
+function deliverPrivate(username) {
+  const receiver = sessions.get(username);
+  if (receiver) void flushInbox(receiver, username);
+}
+
+module.exports = { sendMessage, openInbox, closeInbox, asChatMessage, deliverPrivate };

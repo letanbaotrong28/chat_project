@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; form-action 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src chat-media:; media-src chat-media: blob:; form-action 'none'; base-uri 'none'">
   <title>Chat LAN</title>
   <link rel="stylesheet" href="style.css">
   <script defer src="js/auth.js"></script>
@@ -71,6 +71,15 @@
           <button>Thêm thành viên</button>
         </form>
         <p id="member-feedback" role="status" hidden></p>
+        <button type="button" id="group-delete" class="danger-outline" hidden>Xóa nhóm</button>
+        <dialog id="group-delete-dialog" aria-labelledby="group-delete-title" aria-describedby="group-delete-note">
+          <h2 id="group-delete-title">Xóa nhóm?</h2>
+          <p id="group-delete-note">Tất cả thành viên sẽ mất quyền truy cập. Tin nhắn và tệp của nhóm trên server sẽ bị xóa vĩnh viễn.</p>
+          <div class="dialog-actions">
+            <button type="button" id="group-delete-cancel" autofocus>Hủy</button>
+            <button type="button" id="group-delete-confirm" class="danger-outline">Xóa nhóm</button>
+          </div>
+        </dialog>
         <div id="history-tools" hidden>
           <button id="load-older" type="button">Tải tin cũ hơn</button>
           <span id="history-note" role="status"></span>
@@ -80,13 +89,28 @@
           <label for="message-text" class="sr-only">Nội dung tin nhắn</label>
           <textarea id="message-text" rows="2" placeholder="Nhập tin nhắn…" required></textarea>
           <div class="compose-actions">
+            <button type="button" id="attach-file">Gửi tệp</button>
+            <button type="button" id="record-voice">Ghi âm</button>
             <button id="emoji-toggle" type="button" aria-expanded="false" aria-controls="emoji-list" disabled><span aria-hidden="true">☺</span> Emoji</button>
             <div id="emoji-list" role="toolbar" aria-label="Chọn emoji" hidden></div>
             <small>Shift + Enter để xuống dòng</small>
             <button id="send-message" type="submit">Gửi</button>
           </div>
+          <div id="voice-panel" hidden>
+            <span id="voice-status" role="status"></span>
+            <audio id="voice-draft" controls aria-label="Nghe lại bản ghi" hidden></audio>
+            <div class="voice-actions">
+              <button id="voice-stop" type="button" hidden>Dừng ghi</button>
+              <button id="voice-send" type="button" hidden>Gửi bản ghi</button>
+              <button id="voice-cancel" type="button">Hủy</button>
+            </div>
+          </div>
           <p id="send-error" role="alert"></p>
         </form>
+        <div id="file-transfer" hidden>
+          <span id="file-status" role="status"></span>
+          <progress id="file-progress" max="100" aria-label="Tiến trình truyền tệp" hidden></progress>
+        </div>
       </section>
     </div>
     <details>

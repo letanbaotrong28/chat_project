@@ -1,4 +1,8 @@
 const db = require('../db');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { UPLOAD_DIRS } = require('../config');
+const { folders } = require('../../common/media');
 const sessions = require('../sessions');
 const { TYPES, encode } = require('../../common/protocol');
 const { ERROR_CODES } = require('../../common/constants');
@@ -21,7 +25,7 @@ const membership = db.prepare(`
 function isMember(username, groupId) {
   return Boolean(membership.get(username, groupId));
 }
-const insertGroup = db.prepare('INSERT INTO groups (name, owner_id) VALUES (?, ?)');
+const insertGroup = db.prepare('INSERT INTO groups (id, name, owner_id) VALUES ((SELECT group_id FROM next_chat_ids), ?, ?)');
 const insertMember = db.prepare(`
   INSERT INTO group_members (group_id, user_id) VALUES (?, ?)
   ON CONFLICT(group_id, user_id) DO NOTHING
@@ -31,8 +35,8 @@ const memberNames = db.prepare(`
   WHERE gm.group_id = ? AND u.username <> ?
 `).pluck();
 const insertMessage = db.prepare(`
-  INSERT INTO messages (group_id, sender_id, type, content, time)
-  SELECT gm.group_id, gm.user_id, 'MSG', ?, ? FROM group_members gm
+  INSERT INTO messages (id, group_id, sender_id, type, content, time)
+  SELECT (SELECT message_id FROM next_chat_ids), gm.group_id, gm.user_id, 'MSG', ?, ? FROM group_members gm
   JOIN users u ON u.id = gm.user_id WHERE gm.group_id = ? AND u.username = ?
 `);
 
@@ -57,11 +61,55 @@ function createGroup(_socket, { from, name }) {
 }
 
 function notifyMembers(groupId, from, packet) {
+  notifyUsers(memberNames.iterate(groupId, from), packet);
+}
+
+function notifyUsers(usernames, packet) {
   const frame = encode(packet);
-  for (const name of memberNames.iterate(groupId, from)) {
+  for (const name of usernames) {
     const socket = sessions.get(name);
     if (socket?.writable && !socket.destroyed) socket.write(frame);
   }
+}
+
+const removeOwnedGroup = db.transaction((from, groupId) => {
+  if (findGroup.get(from, groupId)?.owner !== from) return null;
+  const members = memberNames.all(groupId, from);
+  db.prepare(`UPDATE deleted_chat_ids SET group_id = MAX(group_id, ?),
+    message_id = MAX(message_id, COALESCE((SELECT MAX(id) FROM messages WHERE group_id = ?), 0))
+    WHERE singleton = 1`).run(groupId, groupId);
+  db.prepare(`INSERT OR IGNORE INTO pending_file_deletions (type, file_path)
+    SELECT type, file_path FROM messages WHERE group_id = ? AND file_path IS NOT NULL`).run(groupId);
+  db.prepare('DELETE FROM messages WHERE group_id = ?').run(groupId);
+  db.prepare('DELETE FROM group_members WHERE group_id = ?').run(groupId);
+  db.prepare('DELETE FROM groups WHERE id = ?').run(groupId);
+  return members;
+});
+
+// Một lần dừng Server hoặc tệp đang bị khóa trên Windows có thể để lại việc dọn tệp.
+async function cleanDeletedFiles() {
+  const rows = db.prepare('SELECT type, file_path FROM pending_file_deletions').all();
+  for (const { type, file_path: token } of rows) {
+    try {
+      if (!Object.hasOwn(folders, type) || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(token)) {
+        throw new Error('Đường dẫn tệp lưu không hợp lệ.');
+      }
+      await fs.rm(path.join(UPLOAD_DIRS[folders[type]], token), { force: true });
+      db.prepare('DELETE FROM pending_file_deletions WHERE type = ? AND file_path = ?').run(type, token);
+    } catch (error) {
+      console.warn('Chưa dọn được tệp nhóm:', error.code || error.message);
+    }
+  }
+}
+
+async function deleteGroup(_socket, { from, time, groupId }) {
+  if (!from) return failure('Hãy đăng nhập để xóa nhóm.', ERROR_CODES.NOT_LOGGED_IN);
+  const members = Number.isSafeInteger(groupId) && groupId > 0 && removeOwnedGroup(from, groupId);
+  if (!members) return failure('Chỉ chủ nhóm mới xóa được một nhóm đang tồn tại.');
+  const packet = { type: TYPES.GROUP_DELETE, groupId, from, time };
+  notifyUsers(members, packet);
+  await cleanDeletedFiles();
+  return packet;
 }
 
 function addMember(_socket, { from, time, groupId, username }) {
@@ -90,6 +138,7 @@ function* groupsForLogin(username) {
   while (true) {
     const rows = listGroups.all(username, after);
     for (const group of rows) {
+      if (!isMember(username, group.id)) continue;
       yield { type: TYPES.STATE, kind: 'group', group, from: null, time: new Date().toISOString() };
     }
     if (rows.length < 128) return;
@@ -97,4 +146,4 @@ function* groupsForLogin(username) {
   }
 }
 
-module.exports = { createGroup, addMember, sendGroupMessage, groupsForLogin, isMember };
+module.exports = { createGroup, addMember, deleteGroup, sendGroupMessage, groupsForLogin, isMember, notifyMembers, cleanDeletedFiles };

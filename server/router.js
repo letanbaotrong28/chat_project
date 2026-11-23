@@ -5,7 +5,9 @@ const { authenticate, logout } = require('./handlers/auth');
 const { sendMessage } = require('./handlers/message');
 const { getHistory } = require('./handlers/history');
 const { acknowledge } = require('./handlers/state');
-const { createGroup, addMember } = require('./handlers/group');
+const { createGroup, addMember, deleteGroup } = require('./handlers/group');
+const { handleFile } = require('./handlers/file');
+const { folders } = require('../common/media');
 
 const handlers = new Map([
   [TYPES.PING, () => ({ type: TYPES.PING })],
@@ -13,8 +15,10 @@ const handlers = new Map([
   [TYPES.LOGIN, authenticate],
   [TYPES.LOGOUT, logout],
   [TYPES.MSG, sendMessage],
+  ...Object.keys(folders).map(type => [type, handleFile]),
   [TYPES.GROUP_CREATE, createGroup],
   [TYPES.GROUP_ADD, addMember],
+  [TYPES.GROUP_DELETE, deleteGroup],
   [TYPES.HISTORY_REQ, getHistory],
   [TYPES.ACK, acknowledge]
 ]);
@@ -23,7 +27,7 @@ async function route(socket, packet) {
   // Ghi đè danh tính và thời gian trước khi chuyển đến handler.
   const from = sessions.usernameOf(socket);
   const time = new Date().toISOString();
-  const correlation = packet.type === TYPES.HISTORY_REQ && Number.isSafeInteger(packet.requestId)
+  const correlation = (packet.type === TYPES.HISTORY_REQ || Object.hasOwn(folders, packet.type)) && Number.isSafeInteger(packet.requestId)
     ? { requestId: packet.requestId } : {};
   if (packet.type === TYPES.ACK && Number.isSafeInteger(packet.id)) correlation.id = packet.id;
   const handle = handlers.get(packet.type);

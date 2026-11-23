@@ -99,6 +99,12 @@ details[open] #ping { margin-top: 8px; }
 #group-create input, #group-add input { width: 100%; min-width: 0; }
 #group-create button, #group-add button { justify-self: start; }
 #group-feedback, #member-feedback { margin: 8px 0; font-size: 14px; overflow-wrap: anywhere; }
+.danger-outline { background: white; color: #992e29; border-color: #b85d57; }
+.danger-outline:hover:enabled { background: #ffedeb; }
+#group-delete-dialog { max-width: min(26rem, 90vw); border: 1px solid #d3dfda; border-radius: 12px; padding: 24px; color: inherit; }
+#group-delete-dialog h2 { overflow-wrap: anywhere; }
+#group-delete-dialog::backdrop { background: rgb(17 38 33 / 50%); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .presence { display: inline-flex; align-items: center; gap: 7px; }
 .presence::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #88958f; }
 [data-status="online"] .presence { color: #126451; }
@@ -124,10 +130,24 @@ details[open] #ping { margin-top: 8px; }
 #compose { margin-top: 12px; }
 #message-text { width: 100%; padding: 10px; font: inherit; border: 1px solid #a4b5ad; border-radius: 7px; resize: vertical; }
 .compose-actions {
-  display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "emoji hint send" "list list list";
+  display: grid; grid-template-columns: auto auto auto 1fr auto; grid-template-areas: "attach record emoji hint send" "list list list list list";
   gap: 6px 10px; align-items: center; margin-top: 4px;
 }
 .compose-actions small { grid-area: hint; }
+#attach-file { grid-area: attach; padding: 6px 10px; }
+#record-voice { grid-area: record; padding: 6px 10px; }
+#voice-panel { display: grid; gap: 8px; padding: 10px; background: #ecf4f0; border-radius: 8px; }
+.voice-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.media-preview, #voice-draft { display: block; max-width: 100%; margin: 6px 0; }
+img.media-preview, video.media-preview { max-height: 235px; object-fit: contain; border-radius: 6px; }
+.media-note { font-size: 14px; color: #51655d; }
+@media (max-width: 780px) {
+  .compose-actions { grid-template-columns: auto auto 1fr auto; grid-template-areas: "attach record emoji send" "hint hint hint hint" "list list list list"; }
+  #emoji-toggle { justify-self: start; }
+}
+#file-transfer { margin-top: 8px; font-size: 14px; overflow-wrap: anywhere; }
+#file-progress { display: block; width: 100%; margin-top: 4px; accent-color: #146853; }
+.attachment { display: block; margin: 6px 0; padding: 4px 10px; font-size: 14px; }
 #send-message { grid-area: send; }
 #emoji-toggle { grid-area: emoji; padding: 6px 10px; background: white; color: #126451; border-color: #a4b5ad; }
 #emoji-toggle:is(:hover:enabled, [aria-expanded="true"]) { background: #e7f3ee; }
