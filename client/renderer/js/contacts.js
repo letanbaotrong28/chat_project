@@ -32,7 +32,6 @@ function initContacts(chat) {
       button.setAttribute('aria-pressed', String(chat.selected() === username));
       button.addEventListener('click', () => {
         chat.open(username, status);
-        render();
         document.querySelector('#message-text:not(:disabled)')?.focus();
       });
       const name = document.createElement('span');
@@ -57,7 +56,7 @@ function initContacts(chat) {
     note.hidden = !loading && users.size > 0;
   }
 
-  return function onEvent(event) {
+  function onEvent(event) {
     const packet = event.packet;
     if (event.kind === 'state' || (event.kind === 'received' && packet.type === 'LOGOUT')) {
       currentUser = null;
@@ -78,5 +77,6 @@ function initContacts(chat) {
       } else return;
     } else if (event.kind !== 'received' || packet.type !== 'MSG') return;
     render();
-  };
+  }
+  return { onEvent, render };
 }

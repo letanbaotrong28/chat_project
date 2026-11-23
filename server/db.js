@@ -39,5 +39,8 @@ db.exec(`
     WHERE group_id IS NULL AND type = 'MSG';
   CREATE INDEX IF NOT EXISTS idx_private_queue ON messages(receiver_id, id)
     WHERE group_id IS NULL AND type = 'MSG' AND status = 'queued';
+  CREATE INDEX IF NOT EXISTS idx_group_history ON messages(group_id, id)
+    WHERE group_id IS NOT NULL AND type = 'MSG';
+  CREATE INDEX IF NOT EXISTS idx_groups_by_user ON group_members(user_id, group_id);
 `);
 module.exports = db;

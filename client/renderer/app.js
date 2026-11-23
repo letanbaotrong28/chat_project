@@ -5,8 +5,12 @@ const pingButton = document.querySelector('#ping');
 const connectButton = document.querySelector('#connect');
 const connectionError = document.querySelector('#connection-error');
 const updateAccount = initAccountForm();
-const chat = initChat();
-const updateContacts = initContacts(chat);
+const chat = initChat(() => {
+  contacts.render();
+  groups.render();
+});
+const contacts = initContacts(chat);
+const groups = initGroups(chat);
 const labels = { connecting: 'Đang kết nối', connected: 'Đã kết nối', disconnected: 'Đã ngắt kết nối' };
 
 function logLine(label, message, kind) {
@@ -24,7 +28,8 @@ function logLine(label, message, kind) {
 window.tcp.onEvent(event => {
   updateAccount(event);
   chat.onEvent(event);
-  updateContacts(event);
+  contacts.onEvent(event);
+  groups.onEvent(event);
   if (event.kind === 'state') {
     if (event.state !== 'disconnected') connectionError.hidden = true;
     statusLabel.textContent = labels[event.state];

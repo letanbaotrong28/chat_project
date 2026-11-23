@@ -24,6 +24,14 @@ ipcMain.handle('chat:message', (event, to, content) => {
   checkSender(event);
   network.message(to, content);
 });
+ipcMain.handle('group:create', (event, name) => {
+  checkSender(event);
+  network.createGroup(name);
+});
+ipcMain.handle('group:add', (event, groupId, username) => {
+  checkSender(event);
+  network.addMember(groupId, username);
+});
 ipcMain.handle('chat:history', (event, peer, beforeId, requestId) => {
   checkSender(event);
   network.history(peer, beforeId, requestId);

@@ -1,10 +1,11 @@
-function initChat() {
+function initChat(onSelect) {
   const panel = document.querySelector('#chat');
   const title = document.querySelector('#chat-title');
   const note = document.querySelector('#chat-note');
   const thread = document.querySelector('#thread');
   const form = document.querySelector('#compose');
   const input = document.querySelector('#message-text');
+  const emojiPicker = initEmojiPicker(input);
   const send = document.querySelector('#send-message');
   const error = document.querySelector('#send-error');
   const older = document.querySelector('#load-older');
@@ -15,6 +16,7 @@ function initChat() {
   const conversations = new Map();
   let me = null;
   let peer = null;
+  let selectedGroup = null;
   let online = false;
   let pending = null;
 
@@ -45,18 +47,19 @@ function initChat() {
     text.textContent = packet.content;
     bubble.append(sender, time, text);
     thread.append(bubble);
-    receipts.decorate(bubble, packet, me);
+    if (!packet.groupId) receipts.decorate(bubble, packet, me);
   }
 
   function refresh() {
     panel.hidden = !me;
-    title.textContent = peer || 'Tin nhắn riêng';
+    title.textContent = selectedGroup?.name || peer || 'Hội thoại';
     thread.hidden = form.hidden = !peer;
-    note.textContent = peer
-      ? (online ? 'Online' : 'Offline · Tin sẽ được chuyển khi người này đăng nhập.')
-      : 'Chọn một người trong danh sách để mở hội thoại.';
+    if (selectedGroup) note.textContent = selectedGroup.memberCount + ' thành viên · Chủ nhóm: ' + selectedGroup.owner;
+    else if (peer) note.textContent = online ? 'Online' : 'Offline · Tin sẽ được chuyển khi người này đăng nhập.';
+    else note.textContent = 'Chọn người dùng hoặc nhóm để mở hội thoại.';
     input.disabled = !peer;
     input.readOnly = Boolean(peer && pending?.to === peer);
+    emojiPicker.sync();
     send.disabled = !peer || Boolean(pending) || !input.value.trim();
     error.textContent = peer ? conversation(peer).error : '';
     const current = conversations.get(peer);
@@ -92,10 +95,10 @@ function initChat() {
     refresh();
     try {
       const page = await history.load(name, current.beforeId);
-      if (conversations.get(name) !== current || page.peer !== name) return;
+      if (conversations.get(name) !== current || (page.groupId ?? page.peer) !== name) return;
       const first = !current.loaded;
       for (const item of page.messages) {
-        receipts.track(item, me);
+        if (!item.groupId) receipts.track(item, me);
         current.messages.set(item.id, item);
       }
       current.loaded = true;
@@ -114,15 +117,18 @@ function initChat() {
     if (thread.scrollTop <= 1 && current?.loaded && !current.historyError) loadPage(peer);
   });
 
-  function open(name, status) {
+  function open(name, details) {
+    emojiPicker.close();
     peer = name;
-    online = status === 'online';
+    selectedGroup = typeof name === 'number' ? details : null;
+    online = details === 'online';
     const current = conversation(name);
     current.unread = false;
     input.value = current.draft;
     refresh();
     renderMessages(current, true);
     if (!current.loaded) loadPage(name);
+    onSelect();
   }
 
   input.addEventListener('input', () => {
@@ -158,6 +164,7 @@ function initChat() {
     if (event.kind === 'state' || (event.kind === 'received' && ['LOGIN', 'LOGOUT'].includes(packet.type))) {
       me = packet?.type === 'LOGIN' ? packet.from : null;
       peer = pending = null;
+      selectedGroup = null;
       online = false;
       conversations.clear();
       history.reset();
@@ -176,9 +183,9 @@ function initChat() {
       refresh();
       return;
     }
-    if (packet.type !== 'MSG' || (packet.from !== me && packet.to !== me)) return;
-    receipts.track(packet, me);
-    const other = packet.from === me ? packet.to : packet.from;
+    if (packet.type !== 'MSG' || (!packet.groupId && packet.from !== me && packet.to !== me)) return;
+    if (!packet.groupId) receipts.track(packet, me);
+    const other = packet.groupId ?? (packet.from === me ? packet.to : packet.from);
     const current = conversation(other);
     // Tin chờ đã có trong SQLite. Chỉ báo tin mới; trang lịch sử sẽ nạp nội dung
     // khi mở hội thoại, kể cả khi có hàng trăm tin đến trong thời gian offline.
@@ -207,6 +214,12 @@ function initChat() {
     onEvent, open, selected: () => peer, hasUnread: name => conversations.get(name)?.unread,
     markUnread(name) {
       if (peer !== name) conversation(name).unread = true;
+    },
+    updateGroup(group) {
+      if (peer === group.id) {
+        selectedGroup = group;
+        refresh();
+      }
     },
     updatePresence(name, status) {
       if (name !== peer) return;

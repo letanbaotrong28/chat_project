@@ -53,10 +53,24 @@
         </div>
         <p id="contacts-note" role="status"></p>
         <ul id="contacts-list"></ul>
+        <section class="group-panel" aria-labelledby="groups-title">
+          <h2 id="groups-title">Nhóm của tôi</h2>
+          <ul id="groups-list"></ul>
+          <form id="group-create">
+            <label>Tên nhóm<input id="group-name" required></label>
+            <button>Tạo nhóm</button>
+          </form>
+          <p id="group-feedback" role="status"></p>
+        </section>
       </section>
       <section id="chat" class="account" aria-labelledby="chat-title" hidden>
-        <h2 id="chat-title">Tin nhắn riêng</h2>
-        <p id="chat-note">Chọn một người trong danh sách để mở hội thoại.</p>
+        <h2 id="chat-title">Hội thoại</h2>
+        <p id="chat-note">Chọn người dùng hoặc nhóm để mở hội thoại.</p>
+        <form id="group-add" hidden>
+          <label>Tài khoản cần thêm<input id="group-username" required spellcheck="false"></label>
+          <button>Thêm thành viên</button>
+        </form>
+        <p id="member-feedback" role="status" hidden></p>
         <div id="history-tools" hidden>
           <button id="load-older" type="button">Tải tin cũ hơn</button>
           <span id="history-note" role="status"></span>
@@ -65,7 +79,12 @@
         <form id="compose" hidden>
           <label for="message-text" class="sr-only">Nội dung tin nhắn</label>
           <textarea id="message-text" rows="2" placeholder="Nhập tin nhắn…" required></textarea>
-          <div class="toolbar"><small>Shift + Enter để xuống dòng</small><button id="send-message">Gửi</button></div>
+          <div class="compose-actions">
+            <button id="emoji-toggle" type="button" aria-expanded="false" aria-controls="emoji-list" disabled><span aria-hidden="true">☺</span> Emoji</button>
+            <div id="emoji-list" role="toolbar" aria-label="Chọn emoji" hidden></div>
+            <small>Shift + Enter để xuống dòng</small>
+            <button id="send-message" type="submit">Gửi</button>
+          </div>
           <p id="send-error" role="alert"></p>
         </form>
       </section>

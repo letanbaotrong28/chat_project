@@ -1,6 +1,6 @@
 # Khung ứng dụng chat TCP
 
-Client Electron hỗ trợ tài khoản, trạng thái online/offline và chat riêng qua TCP. SQLite lưu hội thoại, tin chờ và trạng thái **Đã gửi**, **Đã nhận**, **Đã xem** của từng tin nhắn. Các bước dưới dùng PowerShell. [Bản lưu tại mốc dựng khung PING](docs/huong-dan-dung-khung.md)
+Client Electron hỗ trợ tài khoản, trạng thái online/offline, chat riêng và chat nhóm qua TCP. SQLite lưu thành viên và lịch sử nhóm. Tin nhắn riêng có ba trạng thái **Đã gửi**, **Đã nhận**, **Đã xem**. Các bước dưới dùng PowerShell. [Bản lưu tại mốc dựng khung PING](docs/huong-dan-dung-khung.md)
 
 ## A. Chuẩn bị môi trường
 
@@ -160,6 +160,22 @@ Client người nhận gửi gói `ACK` theo mã tin, ví dụ `{"type":"ACK","i
 
 **Đường đi của gói.** Giao diện gọi preload qua `contextBridge`. Tiến trình chính nhận IPC và dùng `net` mở TCP. Mỗi gói gồm 4 byte UInt32BE ghi số byte của phần JSON UTF-8, kế tiếp là JSON. Mỗi socket có bộ giải mã riêng, tiếp tục đọc khi thiếu byte và đọc tiếp gói sau nếu còn dữ liệu. Hai đầu đóng socket khi thấy độ dài vượt 1 MiB. Khối tệp dành cho bước sau có kích thước 64 KiB.
 
+### Phần 7. Thử chat nhóm
+
+1. Chạy một Server và hai Client theo mục D. Đăng nhập bằng hai tài khoản đã đăng ký, ví dụ An và Bình.
+2. Ở cửa sổ của An, nhập `Nhóm đồ án` trong **Nhóm của tôi** rồi bấm **Tạo nhóm**. Hội thoại mới mở ra, An là chủ nhóm.
+3. Nhập tên tài khoản của Bình ở ô **Tài khoản cần thêm** rồi bấm **Thêm thành viên**. Nếu Bình đang online, nhóm xuất hiện ngay trong danh sách của Bình. Nếu Bình đang offline, nhóm xuất hiện ở lần đăng nhập tiếp theo.
+4. An gửi tin vào nhóm. Bình bấm **Nhóm đồ án**, đọc tin rồi gửi trả lời. Mỗi tin hiển thị người gửi và thời gian. Khi hai nhóm trùng tên, dùng số `#` dưới tên để phân biệt.
+5. Cho Bình đăng xuất, gửi thêm một tin từ An rồi đăng nhập lại bằng Bình. Mở nhóm để đọc tin đã bỏ lỡ. Với hơn 10 tin, bấm **Tải tin cũ hơn** để đọc trang trước.
+
+Chủ nhóm có quyền thêm thành viên. Mỗi thành viên có thể gửi tin và xem toàn bộ lịch sử, kể cả tin trước thời điểm được thêm. Server kiểm tra thành viên theo tài khoản đã đăng nhập cho mỗi lần gửi và tải lịch sử. Gói `MSG` và `HISTORY_REQ` dùng `groupId` để xác định nhóm. Dữ liệu dùng các bảng `groups`, `group_members` và `messages` trong database hiện tại.
+
+### Phần 8. Thử bảng chọn emoji
+
+1. Đăng nhập hai tài khoản trên hai Client và mở một cuộc chat riêng. Gõ `Chào bạn`, đặt con trỏ sau chữ `Chào`, bấm **Emoji** rồi chọn 👋. Ô soạn tin sẽ hiện `Chào👋 bạn`. Bấm **Gửi** và kiểm tra nội dung ở Client còn lại.
+2. Trong chat nhóm, bôi đen một từ rồi chọn emoji để thay thế từ đó. Bạn cũng có thể gửi một tin chỉ gồm emoji, chẳng hạn `❤️🧑‍💻`. Đăng xuất, đăng nhập lại và mở lịch sử để kiểm tra dấu tiếng Việt và emoji ghép.
+3. Để dùng bàn phím, nhấn **Tab** đến nút **Emoji**, nhấn **Enter** để mở bảng, dùng các phím mũi tên để di chuyển và **Enter** để chèn. **Esc** đóng bảng và giữ nguyên bản nháp.
+
 ## E. Demo trên hai máy
 
 1. Nối cả hai máy vào cùng Wi-Fi, hoặc cho cả hai cùng kết nối điểm phát sóng của điện thoại.
@@ -194,4 +210,4 @@ node --test test/protocol.test.js test/auth.test.js
 - [ ] Tin gửi khi người nhận offline xuất hiện khi họ đăng nhập lại. Lịch sử cũ tải đúng thứ tự qua nhiều trang và mỗi tin chỉ xuất hiện một lần.
 - [ ] Một tin gửi cho người đang offline lần lượt hiện **Đã gửi**, **Đã nhận**, **Đã xem** khi người đó đăng nhập rồi mở tin. Nhãn **Đã xem** vẫn hiện sau khi khởi động lại Server.
 
-Bước kế tiếp là chat nhóm, gồm tạo nhóm, thêm thành viên và gửi tin nhắn trong nhóm.
+- [ ] Chủ nhóm thêm được tài khoản đang online hoặc offline. Hai thành viên gửi và đọc được tin nhóm, còn tài khoản ngoài nhóm chỉ thấy các nhóm của mình.

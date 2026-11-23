@@ -62,9 +62,16 @@ test('Tài khoản và phiên qua TCP', { timeout: 30000 }, async t => {
   const { createChatServer } = require('../server/server');
   const server = createChatServer();
   const sockets = new Set();
+  const serverSockets = new Set();
+  server.on('connection', socket => {
+    serverSockets.add(socket);
+    socket.once('close', () => serverSockets.delete(socket));
+  });
   t.after(async () => {
+    const closed = Array.from(serverSockets, socket => new Promise(resolve => socket.once('close', resolve)));
     for (const socket of sockets) socket.destroy();
     if (server.listening) await new Promise(resolve => server.close(resolve));
+    await Promise.all(closed);
     db.close();
     fs.unlinkSync(path.join(dir, 'chat.db'));
     fs.rmdirSync(dir);
@@ -205,7 +212,7 @@ test('Tài khoản và phiên qua TCP', { timeout: 30000 }, async t => {
     const sender = await connect(server.address().port, sockets);
     const receiver = await connect(server.address().port, sockets);
     const observer = await connect(server.address().port, sockets);
-    const content = 'Chào An 👋\nDòng thứ hai <b>nguyên văn</b>';
+    const content = 'Chào An 👋❤️🧑‍💻\nDòng thứ hai <b>nguyên văn</b>';
     const msg = { type: 'MSG', to: 'An', content, from: 'giả', time: '2000-01-01', id: -1 };
     const count = () => db.prepare('SELECT COUNT(*) FROM messages').pluck().get();
     const before = count();
@@ -349,5 +356,69 @@ test('Tài khoản và phiên qua TCP', { timeout: 30000 }, async t => {
     assert.deepEqual(page.messages.map(m => [m.id, m.status]), [[msg.id, 'seen'], [next.id, 'seen']]);
     await receiver.send(logout, bob);
     assert.equal((await receiver.send(ping))[0].type, 'PING');
+  });
+
+  await t.test('Nhóm qua TCP: quyền thành viên, thông báo trực tiếp và lịch sử khi đăng nhập lại', async () => {
+    const owner = await connect(server.address().port, sockets);
+    const member = await connect(server.address().port, sockets);
+    const outsider = await connect(server.address().port, sockets);
+    const create = { type: 'GROUP_CREATE', name: '  Nhóm học  ' };
+    const add = { type: 'GROUP_ADD', username: 'Lan7' };
+    const memberLogin = { ...login, username: 'Lan7' };
+    assert.equal((await owner.send(create))[0].code, 'NOT_LOGGED_IN');
+    assert.equal((await owner.send(add))[0].code, 'NOT_LOGGED_IN');
+    await owner.send({ ...register, username: 'An7' }, { ...login, username: 'An7' });
+    await member.send({ ...memberLogin, type: 'REGISTER' }, memberLogin);
+    await outsider.send({ ...register, username: 'Tam7' }, { ...login, username: 'Tam7' });
+    for (const name of ['', 'x'.repeat(81), 'hai\ndòng']) {
+      assert.equal((await owner.send({ ...create, name }))[0].code, 'INVALID_INPUT');
+    }
+    const [created] = await owner.send({ ...create, from: 'giả' });
+    const groupId = created.group.id;
+    assert.ok(Number.isSafeInteger(groupId) && groupId > 0);
+    assert.deepEqual(created.group, { id: groupId, name: 'Nhóm học', owner: 'An7', memberCount: 1 });
+    const invite = { ...add, groupId };
+    const msg = { type: 'MSG', groupId, content: '🎉❤️🧑‍💻', from: 'giả' };
+    const history = { type: 'HISTORY_REQ', groupId, requestId: 71 };
+    assert.equal((await outsider.send({ ...invite, from: 'An7' }))[0].code, 'INVALID_INPUT');
+    assert.equal((await owner.send({ ...invite, username: 'khong-tontai' }))[0].code, 'INVALID_INPUT');
+    assert.equal((await owner.send({ ...msg, to: 'Tam7' }))[0].code, 'INVALID_INPUT');
+    const [joined] = await owner.send(invite);
+    assert.equal(joined.group.memberCount, 2);
+    assert.deepEqual(await member.nextReply(), joined);
+    assert.equal((await owner.send(invite))[0].code, 'INVALID_INPUT');
+    assert.equal((await member.send({ ...invite, username: 'Tam7' }))[0].code, 'INVALID_INPUT');
+    const [echo] = await member.send(msg);
+    assert.equal(echo.from, 'Lan7');
+    assert.equal(echo.groupId, groupId);
+    assert.equal(echo.content, msg.content);
+    assert.deepEqual(await owner.nextReply(), echo);
+    assert.equal((await owner.send({ type: 'ACK', id: echo.id, status: 'seen' }))[0].code, 'INVALID_INPUT');
+    assert.equal((await outsider.send(msg))[0].code, 'INVALID_INPUT');
+    assert.equal((await outsider.send({ ...history, from: 'Lan7' }))[0].code, 'INVALID_INPUT');
+    assert.equal((await member.send({ ...history, peer: 'An7' }))[0].code, 'INVALID_INPUT');
+    assert.equal((await member.send({ type: 'HISTORY_REQ', peer: 'An7' }))[0].messages.length, 0);
+    await member.send(logout);
+    const offline = await owner.send(...Array.from({ length: 11 }, (_, i) => ({ ...msg, content: 'Tin ' + i })));
+    await member.send(memberLogin);
+    assert.equal((await member.send(ping))[0].type, 'PING');
+    const restored = member.states.filter(p => p.kind === 'group').map(p => p.group);
+    assert.deepEqual(restored, [joined.group]);
+    const [latest] = await member.send(history);
+    assert.equal(latest.requestId, 71);
+    assert.deepEqual(latest.messages, offline.slice(-10));
+    const [older] = await member.send({ ...history, beforeId: latest.nextBeforeId });
+    assert.deepEqual(older.messages, [echo, offline[0]]);
+    assert.equal(older.nextBeforeId, null);
+    assert.equal((await outsider.send(ping))[0].type, 'PING');
+    assert.ok(outsider.states.every(p => p.kind !== 'group'));
+    await outsider.send(logout);
+    const [addedOffline] = await owner.send({ ...invite, username: 'Tam7' });
+    assert.equal(addedOffline.group.memberCount, 3);
+    assert.deepEqual(await member.nextReply(), addedOffline);
+    await outsider.send({ ...login, username: 'Tam7' });
+    const [afterJoin] = await outsider.send(history);
+    assert.deepEqual(afterJoin.messages, latest.messages);
+    assert.deepEqual(outsider.states.filter(p => p.kind === 'group').at(-1).group, addedOffline.group);
   });
 });

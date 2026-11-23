@@ -63,9 +63,13 @@ function createNetwork(notify) {
     register: (name, password) => authenticate(TYPES.REGISTER, name, password),
     login: (name, password) => authenticate(TYPES.LOGIN, name, password),
     logout: () => send({ type: TYPES.LOGOUT }),
-    message: (to, content) => send({ type: TYPES.MSG, to, content }),
+    createGroup: name => send({ type: TYPES.GROUP_CREATE, name }),
+    addMember: (groupId, username) => send({ type: TYPES.GROUP_ADD, groupId, username }),
+    message: (to, content) => send({ type: TYPES.MSG, ...(typeof to === 'number' ? { groupId: to } : { to }), content }),
     acknowledge: (id, status) => send({ type: TYPES.ACK, id, status }),
-    history: (peer, beforeId, requestId) => send({ type: TYPES.HISTORY_REQ, peer, beforeId, requestId })
+    history: (peer, beforeId, requestId) => send({
+      type: TYPES.HISTORY_REQ, ...(typeof peer === 'number' ? { groupId: peer } : { peer }), beforeId, requestId
+    })
   };
 }
 module.exports = { createNetwork };

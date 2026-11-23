@@ -5,6 +5,7 @@ const { authenticate, logout } = require('./handlers/auth');
 const { sendMessage } = require('./handlers/message');
 const { getHistory } = require('./handlers/history');
 const { acknowledge } = require('./handlers/state');
+const { createGroup, addMember } = require('./handlers/group');
 
 const handlers = new Map([
   [TYPES.PING, () => ({ type: TYPES.PING })],
@@ -12,6 +13,8 @@ const handlers = new Map([
   [TYPES.LOGIN, authenticate],
   [TYPES.LOGOUT, logout],
   [TYPES.MSG, sendMessage],
+  [TYPES.GROUP_CREATE, createGroup],
+  [TYPES.GROUP_ADD, addMember],
   [TYPES.HISTORY_REQ, getHistory],
   [TYPES.ACK, acknowledge]
 ]);

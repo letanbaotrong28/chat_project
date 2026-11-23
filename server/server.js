@@ -4,6 +4,7 @@ const { HOST, PORT } = require('./config');
 const db = require('./db');
 const { contactPages, endSession } = require('./handlers/state');
 const { openInbox, closeInbox } = require('./handlers/message');
+const { groupsForLogin } = require('./handlers/group');
 const { route } = require('./router');
 const { TYPES, encode, createPacketReader } = require('../common/protocol');
 
@@ -37,6 +38,10 @@ async function serve(socket) {
           for (const page of contactPages(reply.from)) {
             if (socket.destroyed) return;
             await sendPacket(socket, page);
+          }
+          for (const packet of groupsForLogin(reply.from)) {
+            if (socket.destroyed) return;
+            await sendPacket(socket, packet);
           }
           openInbox(socket, reply.from);
         }
