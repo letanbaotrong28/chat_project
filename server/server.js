@@ -2,16 +2,22 @@ const net = require('node:net');
 const os = require('node:os');
 const { HOST, PORT } = require('./config');
 const db = require('./db');
-const sessions = require('./sessions');
+const { contactPages, endSession } = require('./handlers/state');
 const { route } = require('./router');
-const { encode, createPacketReader } = require('../common/protocol');
+const { TYPES, encode, createPacketReader } = require('../common/protocol');
+
+function sendPacket(socket, packet) {
+  return new Promise((resolve, reject) => {
+    socket.write(encode(packet), error => error ? reject(error) : resolve());
+  });
+}
 
 async function serve(socket) {
   const peer = socket.remoteAddress + ':' + socket.remotePort;
   console.log('Kết nối:', peer);
   socket.on('error', error => console.warn(peer, error.code || error.name));
   socket.on('close', () => {
-    sessions.remove(socket);
+    endSession(socket);
     console.log('Ngắt kết nối:', peer);
   });
   const read = createPacketReader();
@@ -23,9 +29,13 @@ async function serve(socket) {
         if (socket.destroyed) return;
         const reply = await route(socket, packet);
         if (socket.destroyed) return;
-        await new Promise((resolve, reject) => {
-          socket.write(encode(reply), error => error ? reject(error) : resolve());
-        });
+        await sendPacket(socket, reply);
+        if (reply.type === TYPES.LOGIN) {
+          for (const page of contactPages(reply.from)) {
+            if (socket.destroyed) return;
+            await sendPacket(socket, page);
+          }
+        }
       }
     }
     socket.end();

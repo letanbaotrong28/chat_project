@@ -20,6 +20,10 @@ ipcMain.handle('tcp:ping', event => {
   checkSender(event);
   network.ping();
 });
+ipcMain.handle('chat:message', (event, to, content) => {
+  checkSender(event);
+  network.message(to, content);
+});
 for (const action of ['register', 'login', 'logout']) {
   ipcMain.handle('auth:' + action, (event, username, password) => {
     checkSender(event);

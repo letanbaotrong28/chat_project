@@ -75,3 +75,48 @@ button:disabled { opacity: .5; cursor: default; }
 details { margin-top: 20px; }
 summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 details[open] #ping { margin-top: 8px; }
+.workspace {
+  display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 2.1fr);
+  align-items: start; gap: 14px;
+}
+.workspace .account { margin-top: 16px; padding: 20px; min-width: 0; }
+#contacts .toolbar { flex-wrap: wrap; }
+#contacts h2 { margin: 0; }
+#online-count, #contacts-note, .presence { font-size: 14px; color: #51655d; }
+#contacts-list { list-style: none; margin: 12px 0 0; padding: 0; max-height: 340px; overflow: auto; }
+#contacts-list li {
+  padding: 3px 0; border-top: 1px solid #e2ebe6; overflow-wrap: anywhere;
+}
+#contacts-list button {
+  display: grid; gap: 3px; width: 100%; text-align: left; padding: 8px;
+  background: transparent; color: inherit; border: 1px solid transparent;
+}
+#contacts-list button:hover, #contacts-list button[aria-pressed="true"] { background: #e7f3ee; }
+#contacts-list button[aria-pressed="true"] { border-color: #91bfae; }
+#contacts-list small { color: #11644f; }
+.presence { display: inline-flex; align-items: center; gap: 7px; }
+.presence::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #88958f; }
+[data-status="online"] .presence { color: #126451; }
+[data-status="online"] .presence::before { background: #00836c; }
+#chat h2 { margin: 0; overflow-wrap: anywhere; }
+#chat-note, #compose small { color: #51655d; font-size: 14px; }
+#thread {
+  display: flex; flex-direction: column; gap: 10px; min-height: 180px; max-height: 350px;
+  padding: 12px; background: #f4f7f6; border-radius: 8px; overflow-y: auto;
+}
+.bubble {
+  align-self: flex-start; max-width: 86%; padding: 8px 12px; border-radius: 10px;
+  background: white; border: 1px solid #d3dfda; overflow-wrap: anywhere;
+}
+.bubble.mine { align-self: flex-end; background: #deefe8; border-color: #c0ded0; }
+.bubble strong, .bubble time { font-size: 13px; }
+.bubble time { margin-left: 8px; color: #51655d; }
+.bubble p { margin: 3px 0 0; white-space: pre-wrap; }
+#compose { margin-top: 12px; }
+#message-text { width: 100%; padding: 10px; font: inherit; border: 1px solid #a4b5ad; border-radius: 7px; resize: vertical; }
+#send-error { color: #9e3026; }
+#send-error:empty { display: none; }
+@media (max-width: 650px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  #contacts-list { max-height: 160px; }
+}

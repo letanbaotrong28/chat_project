@@ -18,10 +18,10 @@ function add(username, socket) {
   names.set(socket, username);
 }
 
-function broadcast(packet) {
+function broadcast(packet, exceptSocket) {
   const frame = encode(packet);
   for (const socket of sockets.values()) {
-    if (socket.writable && !socket.destroyed) socket.write(frame);
+    if (socket !== exceptSocket && socket.writable && !socket.destroyed) socket.write(frame);
   }
 }
 

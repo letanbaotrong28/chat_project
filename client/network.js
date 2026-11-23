@@ -10,21 +10,20 @@ function createNetwork(notify) {
     old?.destroy();
   }
 
-  function send(type, username, password) {
+  function send(packet) {
     if (!active || active.connecting || !active.writable) throw new Error('Chưa kết nối đến Server.');
-    const packet = { type };
-    if (type === TYPES.REGISTER || type === TYPES.LOGIN) {
-      if (typeof username !== 'string' || typeof password !== 'string') throw new Error('Dữ liệu tài khoản không hợp lệ.');
-      packet.username = username;
-      packet.password = password;
-    }
     active.write(encode(packet));
     // Nhật ký chỉ cần biết loại lệnh, không gửi lại mật khẩu qua IPC.
-    notify({ kind: 'sent', packet: { type } });
+    notify({ kind: 'sent', packet: { type: packet.type } });
+  }
+
+  function authenticate(type, username, password) {
+    if (typeof username !== 'string' || typeof password !== 'string') throw new Error('Dữ liệu tài khoản không hợp lệ.');
+    send({ type, username, password });
   }
 
   function ping() {
-    send(TYPES.PING);
+    send({ type: TYPES.PING });
   }
 
   function connect(host, port) {
@@ -61,9 +60,10 @@ function createNetwork(notify) {
   }
   return {
     connect, ping, close,
-    register: (name, password) => send(TYPES.REGISTER, name, password),
-    login: (name, password) => send(TYPES.LOGIN, name, password),
-    logout: () => send(TYPES.LOGOUT)
+    register: (name, password) => authenticate(TYPES.REGISTER, name, password),
+    login: (name, password) => authenticate(TYPES.LOGIN, name, password),
+    logout: () => send({ type: TYPES.LOGOUT }),
+    message: (to, content) => send({ type: TYPES.MSG, to, content })
   };
 }
 module.exports = { createNetwork };

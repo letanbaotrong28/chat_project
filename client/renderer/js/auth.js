@@ -67,6 +67,7 @@ function initAccountForm() {
     } else if (event.kind === 'received' && pending) {
       const packet = event.packet;
       if (packet.type === 'ERROR') {
+        if (packet.requestType && packet.requestType !== pending.action.toUpperCase()) return;
         message(packet.content || 'Yêu cầu thất bại.', true);
       } else if (packet.type === pending.action.toUpperCase()) {
         password.value = '';

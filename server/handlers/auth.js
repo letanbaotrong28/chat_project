@@ -3,6 +3,7 @@ const db = require('../db');
 const sessions = require('../sessions');
 const { TYPES } = require('../../common/protocol');
 const { ERROR_CODES } = require('../../common/constants');
+const { publishPresence, endSession } = require('./state');
 
 const insertUser = db.prepare(`
   INSERT INTO users (username, password_hash) VALUES (?, ?)
@@ -23,6 +24,7 @@ async function register(username, password) {
   if (insertUser.run(username, hash).changes === 0) {
     return failure(ERROR_CODES.USERNAME_TAKEN, 'Tên tài khoản đã tồn tại.');
   }
+  publishPresence(username, 'offline');
   return { type: TYPES.REGISTER, username };
 }
 
@@ -36,7 +38,10 @@ async function login(socket, username, password) {
   if (current && !current.destroyed) {
     return failure(ERROR_CODES.ACCOUNT_IN_USE, 'Tài khoản đang đăng nhập ở kết nối khác.');
   }
-  if (!socket.destroyed) sessions.add(username, socket);
+  if (!socket.destroyed) {
+    sessions.add(username, socket);
+    publishPresence(username, 'online');
+  }
   return { type: TYPES.LOGIN, username };
 }
 
@@ -61,7 +66,7 @@ function logout(socket) {
   if (sessions.usernameOf(socket) === null) {
     return failure(ERROR_CODES.NOT_LOGGED_IN, 'Kết nối này chưa đăng nhập.');
   }
-  sessions.remove(socket);
+  endSession(socket);
   return { type: TYPES.LOGOUT };
 }
 

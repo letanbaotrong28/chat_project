@@ -45,6 +45,27 @@
       </div>
       <p id="auth-feedback" role="status">Kết nối đến Server để sử dụng tài khoản.</p>
     </section>
+    <div class="workspace">
+      <section id="contacts" class="account" aria-labelledby="contacts-title" hidden>
+        <div class="toolbar">
+          <h2 id="contacts-title">Người dùng</h2>
+          <span id="online-count" role="status"></span>
+        </div>
+        <p id="contacts-note" role="status"></p>
+        <ul id="contacts-list"></ul>
+      </section>
+      <section id="chat" class="account" aria-labelledby="chat-title" hidden>
+        <h2 id="chat-title">Tin nhắn riêng</h2>
+        <p id="chat-note">Chọn một người trong danh sách để mở hội thoại.</p>
+        <div id="thread" role="log" aria-label="Tin nhắn trong hội thoại" hidden></div>
+        <form id="compose" hidden>
+          <label for="message-text" class="sr-only">Nội dung tin nhắn</label>
+          <textarea id="message-text" rows="2" placeholder="Nhập tin nhắn…" required></textarea>
+          <div class="toolbar"><small>Shift + Enter để xuống dòng</small><button id="send-message">Gửi</button></div>
+          <p id="send-error" role="alert"></p>
+        </form>
+      </section>
+    </div>
     <details>
       <summary>Nhật ký kết nối</summary>
       <button id="ping" disabled>Gửi PING</button>
