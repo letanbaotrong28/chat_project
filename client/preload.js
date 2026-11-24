@@ -7,9 +7,11 @@ contextBridge.exposeInMainWorld('tcp', {
   createGroup: (name, members) => ipcRenderer.invoke('group:create', name, members),
   addMember: (groupId, username) => ipcRenderer.invoke('group:add', groupId, username),
   deleteGroup: groupId => ipcRenderer.invoke('group:delete', groupId),
-  message: (to, content) => ipcRenderer.invoke('chat:message', to, content),
-  upload: peer => ipcRenderer.invoke('file:upload', peer),
-  sendVoice: (peer, bytes) => ipcRenderer.invoke('voice:send', peer, bytes),
+  message: (to, content, replyTo) => ipcRenderer.invoke('chat:message', to, content, replyTo),
+  react: (id, emoji) => ipcRenderer.invoke('chat:react', id, emoji),
+  updateMessage: (id, action, content) => ipcRenderer.invoke('chat:update', id, action, content),
+  upload: (peer, replyTo) => ipcRenderer.invoke('file:upload', peer, replyTo),
+  sendVoice: (peer, bytes, replyTo) => ipcRenderer.invoke('voice:send', peer, bytes, replyTo),
   download: id => ipcRenderer.invoke('file:download', id),
   onFileProgress(callback) {
     const listener = (_event, data) => callback(data);

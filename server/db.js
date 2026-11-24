@@ -61,5 +61,24 @@ db.exec(`
     file_path TEXT NOT NULL,
     PRIMARY KEY (type, file_path)
   );
+  CREATE TABLE IF NOT EXISTS hidden_messages (
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (message_id, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS message_reactions (
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    emoji TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+  );
 `);
+// Nâng cấp cả chat.db đã có tin nhắn từ các phiên bản trước.
+db.transaction(() => {
+  const columns = db.pragma('table_info(messages)').map(column => column.name);
+  if (!columns.includes('edited_at')) db.exec('ALTER TABLE messages ADD COLUMN edited_at TEXT');
+  if (!columns.includes('recalled_at')) db.exec('ALTER TABLE messages ADD COLUMN recalled_at TEXT');
+  if (!columns.includes('reply_to')) db.exec('ALTER TABLE messages ADD COLUMN reply_to INTEGER REFERENCES messages(id) ON DELETE SET NULL');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_message_replies ON messages(reply_to) WHERE reply_to IS NOT NULL');
+}).immediate();
 module.exports = db;

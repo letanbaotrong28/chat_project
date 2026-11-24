@@ -164,6 +164,24 @@ Client người nhận gửi gói `ACK` theo mã tin, ví dụ `{"type":"ACK","i
 
 **Đường đi của gói.** Giao diện gọi preload qua `contextBridge`. Tiến trình chính nhận IPC và dùng `net` mở TCP. Mỗi gói gồm 4 byte UInt32BE ghi số byte của phần JSON UTF-8, kế tiếp là JSON. Mỗi socket có bộ giải mã riêng, tiếp tục đọc khi thiếu byte và đọc tiếp gói sau nếu còn dữ liệu. Hai đầu đóng socket khi thấy độ dài vượt 1 MiB. Mỗi khối truyền tệp chứa tối đa 64 KiB dữ liệu gốc.
 
+### Trả lời và thả cảm xúc
+
+Trong chat riêng hoặc nhóm, rê chuột lên tin văn bản, ảnh, tệp hoặc tin thoại. Bấm **mũi tên Trả lời**, soạn tin rồi gửi. Bạn cũng có thể gửi tệp hoặc bản ghi âm làm câu trả lời. Dấu **×** phía trên ô soạn hủy phần trích dẫn và giữ lại bản nháp. Bấm phần trích dẫn trong hội thoại để xem lại tin gốc.
+
+Bấm **mặt cười trên tin nhắn** để thả cảm xúc. Số bên cạnh mỗi emoji là số người đã chọn cảm xúc đó. Mỗi người có một cảm xúc trên mỗi tin. Chọn emoji khác để đổi, hoặc bấm lại cảm xúc đang chọn để gỡ. Cảm xúc và phần trích dẫn được lưu khi đăng nhập lại.
+
+### Chỉnh sửa và thu hồi tin nhắn
+
+Trong chat riêng hoặc chat nhóm, rê chuột lên tin nhắn và bấm **•••**. Bạn cũng có thể dùng **Tab** để đến nút **Tùy chọn tin nhắn**.
+
+| Thao tác | Kết quả |
+| --- | --- |
+| **Chỉnh sửa** trên tin văn bản bạn gửi | Nhập nội dung mới rồi bấm **Lưu thay đổi**. Tin giữ nguyên vị trí và giờ gửi. Mọi người thấy nhãn **Đã chỉnh sửa**. |
+| **Thu hồi ở phía bạn** trên tin đã gửi hoặc đã nhận | Tin biến mất khỏi lịch sử của tài khoản bạn, kể cả khi đăng nhập lại. Những người khác vẫn thấy tin của họ. |
+| **Thu hồi với mọi người** trên tin bạn gửi | Nội dung được thay bằng thông báo thu hồi. Tệp, ảnh, video và bản ghi âm đính kèm cũng ngừng cho tải từ server. Bản đã lưu về máy vẫn thuộc người đã tải. |
+
+Để thử bằng hai Client, cho An gửi tin rồi sửa khi Bình đang mở hội thoại. Tiếp theo, cho Bình thu hồi ở phía mình và đăng nhập lại để kiểm tra. Dùng một tin khác để An thu hồi với mọi người khi Bình ngoại tuyến, rồi mở lại hội thoại ở cả hai cửa sổ.
+
 ### Phần 7. Thử chat nhóm
 
 1. Chạy một Server và hai Client theo mục D. Đăng nhập bằng hai tài khoản đã đăng ký, ví dụ An và Bình.

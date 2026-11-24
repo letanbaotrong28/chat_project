@@ -5,7 +5,7 @@ const { FILE_CHUNK_BYTES } = require('../common/constants');
 const { readChunk, decodeChunk, validFileName } = require('../common/file');
 const { mediaFormat } = require('../common/media');
 
-async function uploadFile(channel, peer, filename, progress, voice = false) {
+async function uploadFile(channel, peer, filename, progress, voice = false, replyTo) {
   const handle = await fs.open(filename, 'r');
   let token;
   try {
@@ -14,7 +14,7 @@ async function uploadFile(channel, peer, filename, progress, voice = false) {
     const name = path.basename(filename);
     const size = stat.size;
     const target = typeof peer === 'number' ? { groupId: peer } : { to: peer };
-    ({ token } = await channel.request('begin', { ...target, name, size, voice }, mediaFormat(name).type));
+    ({ token } = await channel.request('begin', { ...target, name, size, voice, replyTo }, mediaFormat(name).type));
     const hash = createHash('sha256');
     let offset = 0;
     progress(0, size, name);

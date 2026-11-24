@@ -1,4 +1,4 @@
-function initFileTransfers(selectedPeer) {
+function initFileTransfers(selectedPeer, replyTarget) {
   const attach = document.querySelector('#attach-file');
   const panel = document.querySelector('#file-transfer');
   const status = document.querySelector('#file-status');
@@ -6,7 +6,7 @@ function initFileTransfers(selectedPeer) {
   let active = null;
   let previewKey = null;
   const recorder = initRecorder(selectedPeer, (peer, bytes) =>
-    run('Đang gửi', 'Đang gửi bản ghi…', () => window.tcp.sendVoice(peer, bytes)));
+    run('Đang gửi', 'Đang gửi bản ghi…', () => window.tcp.sendVoice(peer, bytes, replyTarget())));
 
   function setBusy(busy) {
     attach.disabled = busy;
@@ -48,7 +48,7 @@ function initFileTransfers(selectedPeer) {
     }
   }
 
-  attach.addEventListener('click', () => run('Đang gửi', 'Đang chọn tệp…', () => window.tcp.upload(selectedPeer())));
+  attach.addEventListener('click', () => run('Đang gửi', 'Đang chọn tệp…', () => window.tcp.upload(selectedPeer(), replyTarget())));
   window.tcp.onFileProgress(({ name, percent }) => {
     if (!active) return;
     bar.value = percent;

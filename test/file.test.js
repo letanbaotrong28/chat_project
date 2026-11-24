@@ -227,4 +227,57 @@ test('Truyền tệp qua TCP và ghép trên đĩa', { timeout: 30000 }, async t
       await preview.close();
     }
   });
+
+  await t.test('Ẩn và thu hồi ảnh chặn tải và xem lại đúng phạm vi', async () => {
+    db.prepare('INSERT INTO users(username,password_hash) VALUES (?,?)').run('Mai', hash);
+    const reader = await login('Mai');
+    const data = Buffer.from('ảnh thử');
+    const { token } = await alice.channel.request('begin', { name: 'ảnh.png', to: 'Mai', size: data.length }, 'IMAGE');
+    await alice.channel.request('chunk', { token, data: data.toString('base64'), offset: 0 });
+    const finish = { token, sha256: createHash('sha256').update(data).digest('hex') };
+    const { message: { id } } = await alice.channel.request('finish', finish);
+    const preview = createMediaPreview(() => alice.channel);
+    const url = 'chat-media://preview/' + preview.reset(true) + '/' + id;
+    try {
+      const response = await preview.respond(new Request(url));
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), data);
+      const invalid = await alice.reply('ERROR', () => alice.client.updateMessage(id, 'edit', 'sửa tệp'));
+      assert.equal(invalid.requestType, 'MSG_UPDATE');
+      await reader.reply('MSG_UPDATE', () => reader.client.updateMessage(id, 'hide'));
+      await assert.rejects(fileInfo(reader.channel, id), /quyền/);
+      assert.equal((await fileInfo(alice.channel, id)).size, data.length);
+      const stored = db.prepare('SELECT file_path FROM messages WHERE id=?').pluck().get(id);
+      await alice.reply('MSG_UPDATE', () => alice.client.updateMessage(id, 'recall'));
+      assert.equal((await preview.respond(new Request(url))).status, 404);
+      await assert.rejects(fs.stat(path.join(uploadDir, 'images', stored)), { code: 'ENOENT' });
+      await assert.rejects(alice.channel.request('finish', finish), /thu hồi/);
+      const page = await alice.reply('HISTORY', () => alice.client.history('Mai', null, 31));
+      const message = page.messages.find(m => m.id === id);
+      assert.ok(message.recalledAt && !('file' in message) && !('content' in message));
+    } finally {
+      await preview.close();
+    }
+  });
+
+  await t.test('Tệp trả lời lấy trích dẫn hiện tại, từ chối khi tin gốc bị thu hồi giữa lúc gửi', async () => {
+    db.prepare('INSERT INTO users(username,password_hash) VALUES (?,?)').run('Thu', hash);
+    const reader = await login('Thu');
+    const original = await reader.reply('MSG', () => reader.client.message('An', 'Tài liệu nào?'));
+    const begin = { name: 'danh-sach.txt', size: 0, to: 'Thu', replyTo: original.id };
+    const finish = { sha256: createHash('sha256').digest('hex') };
+    await assert.rejects(alice.channel.request('begin', { ...begin, to: 'Mai' }), /tin nhắn gốc/i);
+    const { token } = await alice.channel.request('begin', begin);
+    const first = await alice.channel.request('finish', { token, ...finish });
+    assert.deepEqual(first.message.reply, { id: original.id, from: 'Thu', text: original.content });
+    await reader.reply('MSG_UPDATE', () => reader.client.updateMessage(original.id, 'edit', 'Tài liệu mới?'));
+    const replay = await alice.channel.request('finish', { token, ...finish });
+    assert.equal(replay.message.id, first.message.id);
+    assert.equal(replay.message.reply.text, 'Tài liệu mới?');
+    const second = await alice.channel.request('begin', begin);
+    await reader.reply('MSG_UPDATE', () => reader.client.updateMessage(original.id, 'recall'));
+    await assert.rejects(alice.channel.request('finish', { token: second.token, ...finish }), /tin nhắn gốc/i);
+    assert.equal(db.prepare('SELECT COUNT(*) FROM messages WHERE reply_to=?').pluck().get(original.id), 1);
+    const page = await reader.reply('HISTORY', () => reader.client.history('An', null, 69));
+    assert.deepEqual(page.messages.at(-1).reply, { id: original.id });
+  });
 });

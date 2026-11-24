@@ -10,6 +10,7 @@
   <script defer src="js/auth.js"></script>
   <script defer src="js/contacts.js"></script>
   <script defer src="js/chat.js"></script>
+  <script defer src="js/messageActions.js"></script>
   <script defer src="js/group.js"></script>
   <script defer src="js/media.js"></script>
   <script defer src="js/recorder.js"></script>
@@ -21,6 +22,7 @@
 <body>
   <svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
     <defs>
+      <symbol id="i-reply" viewBox="0 0 24 24"><path d="m10 4-7 6 7 6v-4c5 0 8 2 11 7-1-8-5-11-11-11V4Z"/></symbol>
       <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20.5 11.2a7.7 7.7 0 0 1-7.8 7.7H9l-5 2 1.2-4.6A7.7 7.7 0 1 1 20.5 11.2Z"/><path d="M8.5 10h7M8.5 13.5H13"/></symbol>
       <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a6 6 0 0 1 12 0v1M16 5.3a3 3 0 0 1 0 5.5M18 14a4.5 4.5 0 0 1 3 4.4"/></symbol>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
@@ -95,6 +97,10 @@
         </div>
         <div id="thread" role="log" aria-label="Tin nhắn trong hội thoại" hidden></div>
         <form id="compose" hidden>
+          <div id="reply-draft" hidden>
+            <div role="status"><strong id="reply-author"></strong><span id="reply-excerpt"></span></div>
+            <button type="button" id="cancel-reply" class="icon-button" aria-label="Hủy trả lời" title="Hủy trả lời">×</button>
+          </div>
           <label for="message-text" class="sr-only">Nội dung tin nhắn</label>
           <textarea id="message-text" rows="2" placeholder="Nhập tin nhắn…" required></textarea>
           <div class="compose-actions">
@@ -130,6 +136,25 @@
       </div>
     </details>
   </main>
+  <div id="message-menu" popover="auto" role="group" aria-label="Tùy chọn tin nhắn">
+    <div id="reaction-palette" role="group" aria-label="Thả cảm xúc"></div>
+    <button type="button" data-action="reply">Trả lời</button>
+    <button type="button" data-action="edit">Chỉnh sửa</button>
+    <button type="button" data-action="hide">Thu hồi ở phía bạn</button>
+    <button type="button" data-action="recall">Thu hồi với mọi người</button>
+  </div>
+  <dialog id="message-dialog" aria-labelledby="message-dialog-title" aria-describedby="message-dialog-note">
+    <form id="message-action-form">
+      <h2 id="message-dialog-title"></h2>
+      <p id="message-dialog-note"></p>
+      <textarea id="message-edit-text" rows="4" aria-label="Nội dung tin nhắn đã sửa" hidden></textarea>
+      <p id="message-action-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" id="cancel-message-action">Hủy</button>
+        <button type="submit" id="confirm-message-action"></button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="group-create-dialog" aria-labelledby="group-create-title">
     <form id="group-create">
       <div class="dialog-heading"><span class="dialog-mark"><svg class="icon" aria-hidden="true"><use href="#i-group"></use></svg></span><h2 id="group-create-title">Tạo nhóm</h2></div>

@@ -9,6 +9,7 @@ const selectPage = db.prepare(`
     SELECT 1 FROM messages m WHERE m.sender_id = u.id
       AND m.receiver_id = (SELECT id FROM users WHERE username = @self)
       AND m.group_id IS NULL AND m.type IN ('MSG', 'FILE', 'IMAGE', 'VIDEO', 'SOUND') AND m.status IN ('queued', 'received')
+      AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = m.id AND h.user_id = m.receiver_id)
   ) AS unread FROM users u
   WHERE u.id > @afterId AND u.username <> @self ORDER BY u.id LIMIT @limit
 `);

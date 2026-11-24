@@ -8,20 +8,22 @@ const { asChatMessage } = require('./message');
 const PAGE_SIZE = 10;
 const userId = db.prepare('SELECT id FROM users WHERE username = ?').pluck();
 const selectPage = db.prepare(`
-  SELECT m.id, m.type, s.username AS "from", r.username AS "to", m.content, m.time,
+  SELECT m.id, m.type, s.username AS "from", r.username AS "to", m.content, m.time, m.edited_at, m.recalled_at, m.reply_to,
     CASE WHEN m.status = 'queued' THEN 'sent' ELSE m.status END AS status
   FROM messages m JOIN users s ON s.id = m.sender_id JOIN users r ON r.id = m.receiver_id
   WHERE m.type IN ('MSG', 'FILE', 'IMAGE', 'VIDEO', 'SOUND') AND m.group_id IS NULL
     AND ((m.sender_id = @self AND m.receiver_id = @other)
       OR (m.sender_id = @other AND m.receiver_id = @self))
     AND m.id < COALESCE(@before, 9223372036854775807)
+    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = m.id AND h.user_id = @self)
   ORDER BY m.id DESC LIMIT @limit
 `);
 
 const selectGroupPage = db.prepare(`
-  SELECT m.id, m.type, m.group_id AS groupId, s.username AS "from", m.content, m.time
+  SELECT m.id, m.type, m.group_id AS groupId, s.username AS "from", m.content, m.time, m.edited_at, m.recalled_at, m.reply_to
   FROM messages m JOIN users s ON s.id = m.sender_id
   WHERE m.group_id = ? AND m.type IN ('MSG', 'FILE', 'IMAGE', 'VIDEO', 'SOUND') AND m.id < COALESCE(?, 9223372036854775807)
+    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = m.id AND h.user_id = ?)
   ORDER BY m.id DESC LIMIT ?
 `);
 
@@ -35,7 +37,7 @@ function getHistory(_socket, { from, peer, groupId, beforeId = null }) {
     if (peer !== undefined || !Number.isSafeInteger(groupId) || groupId <= 0 || !isMember(from, groupId)) {
       return { type: TYPES.ERROR, code: ERROR_CODES.INVALID_INPUT, content: 'Không thể xem lịch sử nhóm này.' };
     }
-    rows = selectGroupPage.all(groupId, beforeId, PAGE_SIZE + 1);
+    rows = selectGroupPage.all(groupId, beforeId, userId.get(from), PAGE_SIZE + 1);
   } else {
     if (typeof peer !== 'string' || !peer || peer === from) {
       return { type: TYPES.ERROR, code: ERROR_CODES.INVALID_INPUT, content: 'Hội thoại không hợp lệ.' };
@@ -44,7 +46,7 @@ function getHistory(_socket, { from, peer, groupId, beforeId = null }) {
     if (other === undefined) return { type: TYPES.ERROR, code: ERROR_CODES.INVALID_INPUT, content: 'Tài khoản không tồn tại.' };
     rows = selectPage.all({ self: userId.get(from), other, before: beforeId, limit: PAGE_SIZE + 1 });
   }
-  const messages = rows.slice(0, PAGE_SIZE).reverse().map(asChatMessage);
+  const messages = rows.slice(0, PAGE_SIZE).reverse().map(row => asChatMessage(row, from));
   const nextBeforeId = rows.length > PAGE_SIZE ? messages[0].id : null;
   return { type: TYPES.HISTORY, ...(groupId === undefined ? { peer } : { groupId }), messages, nextBeforeId };
 }

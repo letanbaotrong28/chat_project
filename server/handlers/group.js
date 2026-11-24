@@ -6,6 +6,7 @@ const { folders } = require('../../common/media');
 const sessions = require('../sessions');
 const { TYPES, encode } = require('../../common/protocol');
 const { ERROR_CODES } = require('../../common/constants');
+const { replyPreview } = require('./messageContext');
 
 const userId = db.prepare('SELECT id FROM users WHERE username = ?').pluck();
 const groupFields = `
@@ -35,8 +36,8 @@ const memberNames = db.prepare(`
   WHERE gm.group_id = ? AND u.username <> ?
 `).pluck();
 const insertMessage = db.prepare(`
-  INSERT INTO messages (id, group_id, sender_id, type, content, time)
-  SELECT (SELECT message_id FROM next_chat_ids), gm.group_id, gm.user_id, 'MSG', ?, ? FROM group_members gm
+  INSERT INTO messages (id, group_id, sender_id, type, content, time, reply_to)
+  SELECT (SELECT message_id FROM next_chat_ids), gm.group_id, gm.user_id, 'MSG', ?, ?, ? FROM group_members gm
   JOIN users u ON u.id = gm.user_id WHERE gm.group_id = ? AND u.username = ?
 `);
 
@@ -76,10 +77,13 @@ function notifyMembers(groupId, from, packet) {
 }
 
 function notifyUsers(usernames, packet) {
-  const frame = encode(packet);
+  // Một thành viên có thể đã ẩn tin gốc. Chỉ gửi trích dẫn họ được xem.
+  const frame = packet.reply ? null : encode(packet);
   for (const name of usernames) {
     const socket = sessions.get(name);
-    if (socket?.writable && !socket.destroyed) socket.write(frame);
+    if (socket?.writable && !socket.destroyed) {
+      socket.write(frame ?? encode({ ...packet, reply: replyPreview(packet.reply.id, name) }));
+    }
   }
 }
 
@@ -108,7 +112,7 @@ async function cleanDeletedFiles() {
       await fs.rm(path.join(UPLOAD_DIRS[folders[type]], token), { force: true });
       db.prepare('DELETE FROM pending_file_deletions WHERE type = ? AND file_path = ?').run(type, token);
     } catch (error) {
-      console.warn('Chưa dọn được tệp nhóm:', error.code || error.message);
+      console.warn('Chưa dọn được tệp đính kèm:', error.code || error.message);
     }
   }
 }
@@ -136,10 +140,11 @@ function addMember(_socket, { from, time, groupId, username }) {
   return packet;
 }
 
-function sendGroupMessage({ from, time, groupId, content }) {
-  const result = insertMessage.run(content, time, groupId, from);
+function sendGroupMessage({ from, time, groupId, content, replyTo = null }) {
+  const result = insertMessage.run(content, time, replyTo, groupId, from);
   if (!result.changes) return failure('Bạn cần là thành viên để gửi tin vào nhóm.');
   const packet = { type: TYPES.MSG, id: result.lastInsertRowid, groupId, from, content, time };
+  if (replyTo) packet.reply = replyPreview(replyTo, from);
   notifyMembers(groupId, from, packet);
   return packet;
 }
@@ -157,4 +162,4 @@ function* groupsForLogin(username) {
   }
 }
 
-module.exports = { createGroup, addMember, deleteGroup, sendGroupMessage, groupsForLogin, isMember, notifyMembers, cleanDeletedFiles };
+module.exports = { createGroup, addMember, deleteGroup, sendGroupMessage, groupsForLogin, isMember, notifyMembers, notifyUsers, cleanDeletedFiles };

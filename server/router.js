@@ -3,6 +3,7 @@ const { ERROR_CODES } = require('../common/constants');
 const sessions = require('./sessions');
 const { authenticate, logout } = require('./handlers/auth');
 const { sendMessage } = require('./handlers/message');
+const { updateMessage, reactToMessage } = require('./handlers/messageUpdate');
 const { getHistory } = require('./handlers/history');
 const { acknowledge } = require('./handlers/state');
 const { createGroup, addMember, deleteGroup } = require('./handlers/group');
@@ -15,6 +16,8 @@ const handlers = new Map([
   [TYPES.LOGIN, authenticate],
   [TYPES.LOGOUT, logout],
   [TYPES.MSG, sendMessage],
+  [TYPES.MSG_UPDATE, updateMessage],
+  [TYPES.REACTION, reactToMessage],
   ...Object.keys(folders).map(type => [type, handleFile]),
   [TYPES.GROUP_CREATE, createGroup],
   [TYPES.GROUP_ADD, addMember],
@@ -29,7 +32,7 @@ async function route(socket, packet) {
   const time = new Date().toISOString();
   const correlation = (packet.type === TYPES.HISTORY_REQ || Object.hasOwn(folders, packet.type)) && Number.isSafeInteger(packet.requestId)
     ? { requestId: packet.requestId } : {};
-  if (packet.type === TYPES.ACK && Number.isSafeInteger(packet.id)) correlation.id = packet.id;
+  if ([TYPES.ACK, TYPES.MSG_UPDATE, TYPES.REACTION].includes(packet.type) && Number.isSafeInteger(packet.id)) correlation.id = packet.id;
   const handle = handlers.get(packet.type);
   if (!handle) {
     return { type: TYPES.ERROR, code: ERROR_CODES.NOT_IMPLEMENTED, content: 'chưa cài đặt', from, time };

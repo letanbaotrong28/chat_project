@@ -21,17 +21,90 @@ function initChat(onSelect) {
   let online = false;
   let pending = null;
   let renderedConversation = null;
-  const files = initFileTransfers(() => peer);
+  const replyDraft = document.querySelector('#reply-draft');
+  const cancelReply = document.querySelector('#cancel-reply');
+  const replyAuthor = document.querySelector('#reply-author');
+  const replyExcerpt = document.querySelector('#reply-excerpt');
+  const pendingReactions = new Map();
+  const files = initFileTransfers(() => peer, () => conversations.get(peer)?.replyTo);
+  const actions = initMessageActions(thread, id => conversations.get(peer)?.messages.get(id), () => me, startReply, react);
 
   function conversation(name) {
     if (!conversations.has(name)) {
       conversations.set(name, {
-        messages: new Map(), draft: '', error: '', unread: false,
+        messages: new Map(), draft: '', replyTo: null, error: '', unread: false,
         loaded: false, loading: false, beforeId: null, historyError: ''
       });
     }
     return conversations.get(name);
   }
+
+  function excerpt(text) {
+    return Array.from(text).slice(0, 120).join('');
+  }
+  function startReply(id) {
+    const current = conversations.get(peer);
+    if (!current || pending?.to === peer || current.messages.get(id)?.recalledAt) return;
+    current.replyTo = id;
+    current.error = '';
+    refresh();
+    input.focus();
+  }
+  cancelReply.addEventListener('click', () => {
+    const current = conversations.get(peer);
+    if (current) current.replyTo = null;
+    refresh();
+    input.focus();
+  });
+
+  async function react(msg, emoji) {
+    if (msg.recalledAt || pendingReactions.has(msg.id)) return;
+    const current = conversations.get(peer);
+    pendingReactions.set(msg.id, current);
+    try {
+      await window.tcp.react(msg.id, msg.myReaction === emoji ? null : emoji);
+    } catch {
+      if (pendingReactions.get(msg.id) !== current) return;
+      pendingReactions.delete(msg.id);
+      current.error = 'Không gửi được cảm xúc. Hãy kiểm tra kết nối.';
+      refresh();
+    }
+  }
+
+  function renderQuote(bubble, reply) {
+    let quote = bubble.querySelector('.reply-quote');
+    if (!quote) {
+      quote = document.createElement('button');
+      quote.type = 'button';
+      quote.className = 'reply-quote';
+      quote.append(document.createElement('b'), document.createElement('span'));
+      bubble.append(quote);
+    }
+    quote.dataset.original = reply.id;
+    quote.disabled = !reply.from;
+    quote.firstElementChild.textContent = reply.from || '';
+    quote.lastElementChild.textContent = reply.from ? reply.text : 'Tin nhắn gốc không còn khả dụng.';
+    quote.title = reply.from ? 'Xem tin nhắn gốc' : '';
+  }
+
+  thread.addEventListener('click', async event => {
+    const quote = event.target.closest('.reply-quote');
+    if (!quote || quote.disabled) return;
+    const name = peer;
+    const current = conversations.get(name);
+    const id = Number(quote.dataset.original);
+    while (peer === name && conversations.get(name) === current && quote.isConnected && !quote.disabled) {
+      const original = thread.querySelector('[data-id="' + id + '"]');
+      if (original) {
+        original.scrollIntoView({ block: 'center' });
+        original.animate([{ outline: '2px solid #837add' }, { outline: '2px solid transparent' }], 1100);
+        return;
+      }
+      if (current.loaded && current.beforeId === null) return;
+      await loadPage(name);
+      if (current.historyError) return;
+    }
+  });
 
   function appendMessage(packet, before = null) {
     const bubble = document.createElement('div');
@@ -47,14 +120,90 @@ function initChat(onSelect) {
     if (!today) time.textContent += ' · ' + date.toLocaleDateString('vi-VN');
     time.title = date.toLocaleString('vi-VN');
     bubble.append(sender, time);
-    if (packet.file) files.decorate(bubble, packet);
+    if (packet.editedAt && !packet.recalledAt) {
+      const edited = document.createElement('small');
+      edited.className = 'message-edited';
+      edited.textContent = 'Đã chỉnh sửa';
+      edited.title = new Date(packet.editedAt).toLocaleString('vi-VN');
+      bubble.append(edited);
+    }
+    actions.decorate(bubble, packet);
+    if (packet.reply && !packet.recalledAt) renderQuote(bubble, packet.reply);
+    if (packet.file && !packet.recalledAt) files.decorate(bubble, packet);
     else {
       const text = document.createElement('p');
-      text.textContent = packet.content;
+      if (packet.recalledAt) {
+        bubble.classList.add('recalled');
+        text.textContent = packet.from === me ? 'Bạn đã thu hồi một tin nhắn.' : packet.from + ' đã thu hồi một tin nhắn.';
+      } else text.textContent = packet.content;
       bubble.append(text);
     }
     thread.insertBefore(bubble, before);
     if (!packet.groupId) receipts.decorate(bubble, packet, me);
+    actions.renderReactions(bubble, packet);
+  }
+
+  function changedMessage(item, update) {
+    if (!update) return item;
+    if (update.action === 'hide') return null;
+    if (update.action === 'recall') {
+      const { content, file, editedAt, reply, reactions, myReaction, ...metadata } = item;
+      return { ...metadata, recalledAt: update.recalledAt };
+    }
+    return { ...item, content: update.content, editedAt: update.editedAt };
+  }
+
+  function changedQuote(reply, update) {
+    if (update.action !== 'edit') return { id: reply.id };
+    return reply.from ? { ...reply, text: excerpt(update.content) } : reply;
+  }
+
+  function updateReactions(packet) {
+    if (packet.from === me) pendingReactions.delete(packet.id);
+    const name = packet.groupId ?? (packet.sender === me ? packet.to : packet.sender);
+    const current = conversations.get(name);
+    if (!current) return;
+    const patch = { reactions: packet.reactions };
+    if (packet.from === me) patch.myReaction = packet.emoji;
+    if (current.pageReactions) {
+      current.pageReactions.set(packet.id, { ...current.pageReactions.get(packet.id), ...patch });
+    }
+    const msg = current.messages.get(packet.id);
+    if (!msg || msg.recalledAt) return;
+    Object.assign(msg, patch);
+    const bubble = peer === name && thread.querySelector('[data-id="' + msg.id + '"]');
+    if (bubble) actions.renderReactions(bubble, msg);
+  }
+
+  function updateMessage(packet) {
+    const name = packet.groupId ?? (packet.sender === me ? packet.to : packet.sender);
+    const current = conversations.get(name);
+    if (!current) return;
+    current.pageUpdates?.set(packet.id, packet);
+    for (const msg of current.messages.values()) {
+      if (msg.reply?.id !== packet.id) continue;
+      msg.reply = changedQuote(msg.reply, packet);
+      const bubble = peer === name && thread.querySelector('[data-id="' + msg.id + '"]');
+      if (bubble) renderQuote(bubble, msg.reply);
+    }
+    if (current.replyTo === packet.id && packet.action !== 'edit') {
+      current.replyTo = null;
+      current.error = 'Tin nhắn gốc không còn khả dụng. Bạn có thể chọn tin khác hoặc gửi nội dung đang soạn.';
+    }
+    const item = current.messages.get(packet.id);
+    if (!item) return; // Một trang chưa tải sẽ lấy bản hiện tại từ Server.
+    const next = changedMessage(item, packet);
+    if (next) current.messages.set(item.id, next);
+    else current.messages.delete(item.id);
+    if (peer !== name) return;
+    const old = thread.querySelector('[data-id="' + item.id + '"]');
+    if (!old) return;
+    const after = old.nextElementSibling;
+    for (const player of old.querySelectorAll('audio,video')) player.pause();
+    receipts.removeBubble(old);
+    old.remove();
+    if (next) appendMessage(next, after);
+    refresh();
   }
 
   function refresh() {
@@ -77,6 +226,14 @@ function initChat(onSelect) {
     send.disabled = !peer || Boolean(pending) || !input.value.trim();
     error.textContent = peer ? conversation(peer).error : '';
     const current = conversations.get(peer);
+    const parent = current?.messages.get(current.replyTo);
+    replyDraft.hidden = !parent;
+    if (parent) {
+      replyAuthor.textContent = 'Đang trả lời ' + (parent.from === me ? 'chính bạn' : parent.from);
+      replyExcerpt.textContent = parent.file ?
+        (parent.file.voice ? 'Tin nhắn thoại' : parent.file.name) : excerpt(parent.content);
+      cancelReply.disabled = input.readOnly;
+    } else replyAuthor.textContent = replyExcerpt.textContent = '';
     tools.hidden = !current;
     if (current) {
       older.hidden = current.loading || (current.loaded && current.beforeId === null);
@@ -111,15 +268,22 @@ function initChat(onSelect) {
   async function loadPage(name) {
     if (!name) return;
     const current = conversation(name);
-    if (current.loading || (current.loaded && current.beforeId === null)) return;
-    current.loading = true;
+    if (current.loading) return current.loading.catch(() => {});
+    if (current.loaded && current.beforeId === null) return;
+    current.loading = history.load(name, current.beforeId);
+    current.pageUpdates = new Map();
+    current.pageReactions = new Map();
     current.historyError = '';
     refresh();
     try {
-      const page = await history.load(name, current.beforeId);
+      const page = await current.loading;
       if (conversations.get(name) !== current || (page.groupId ?? page.peer) !== name) return;
       const first = !current.loaded;
-      for (const item of page.messages) {
+      for (const row of page.messages) {
+        const item = changedMessage(row, current.pageUpdates.get(row.id));
+        if (!item) continue;
+        if (item.reply && current.pageUpdates.has(item.reply.id)) item.reply = changedQuote(item.reply, current.pageUpdates.get(item.reply.id));
+        if (!item.recalledAt) Object.assign(item, current.pageReactions.get(item.id));
         if (!item.groupId) receipts.track(item, me);
         current.messages.set(item.id, item);
       }
@@ -130,6 +294,8 @@ function initChat(onSelect) {
       current.historyError = failure.message;
     } finally {
       current.loading = false;
+      current.pageUpdates = null;
+      current.pageReactions = null;
       if (peer === name && conversations.get(name) === current) refresh();
     }
   }
@@ -140,7 +306,10 @@ function initChat(onSelect) {
   });
 
   function open(name, details) {
-    if (name !== peer) files.leaveChat();
+    if (name !== peer) {
+      files.leaveChat();
+      actions.reset();
+    }
     emojiPicker.close();
     peer = name;
     selectedGroup = typeof name === 'number' ? details : null;
@@ -169,11 +338,11 @@ function initChat(onSelect) {
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (!peer || pending || !input.value.trim()) return;
-    const attempt = { to: peer, content: input.value };
+    const attempt = { to: peer, content: input.value, replyTo: conversation(peer).replyTo };
     pending = attempt;
     refresh();
     try {
-      await window.tcp.message(attempt.to, attempt.content);
+      await window.tcp.message(attempt.to, attempt.content, attempt.replyTo);
     } catch {
       if (pending !== attempt) return;
       pending = null;
@@ -191,8 +360,10 @@ function initChat(onSelect) {
       selectedGroup = null;
       online = false;
       conversations.clear();
+      pendingReactions.clear();
       renderedConversation = null;
       history.reset();
+      actions.reset();
       receipts.reset();
       files.reset(me ? event.previewKey : null);
       input.value = '';
@@ -203,6 +374,22 @@ function initChat(onSelect) {
     if (!me || event.kind !== 'received') return;
     history.receive(packet);
     receipts.onPacket(packet, me);
+    actions.receive(packet);
+    if (packet.type === 'REACTION') {
+      updateReactions(packet);
+      return;
+    }
+    if (packet.type === 'ERROR' && packet.requestType === 'REACTION') {
+      const current = pendingReactions.get(packet.id);
+      pendingReactions.delete(packet.id);
+      if (current) current.error = packet.content;
+      refresh();
+      return;
+    }
+    if (packet.type === 'MSG_UPDATE') {
+      updateMessage(packet);
+      return;
+    }
     if (packet.type === 'ERROR' && packet.requestType === 'MSG' && pending) {
       const current = conversations.get(pending.to);
       if (current) current.error = packet.content;
@@ -222,6 +409,7 @@ function initChat(onSelect) {
     }
     const exists = current.messages.has(packet.id);
     current.messages.set(packet.id, packet);
+    if (packet.from === me && packet.reply && current.replyTo === packet.reply.id) current.replyTo = null;
     if (!packet.file && packet.from === me && pending?.to === other) {
       current.draft = current.error = '';
       pending = null;
@@ -242,6 +430,7 @@ function initChat(onSelect) {
     removeGroup(id) {
       conversations.delete(id);
       if (peer !== id) return;
+      actions.reset();
       files.leaveChat();
       emojiPicker.close();
       receipts.clearView();

@@ -11,17 +11,19 @@ const { decodeChunk, readChunk, validFileName } = require('../../common/file');
 const { mediaFormat, storedFile, folders } = require('../../common/media');
 const { deliverPrivate } = require('./message');
 const { isMember, notifyMembers } = require('./group');
+const { canReply, replyPreview, reactionSummary } = require('./messageContext');
 
 const uploads = new WeakMap();
 const completed = new WeakMap();
 const userId = db.prepare('SELECT id FROM users WHERE username = ?').pluck();
 const insertFile = db.prepare(`
-  INSERT INTO messages(id, sender_id, receiver_id, group_id, type, content, file_path, time, status)
-  VALUES ((SELECT message_id FROM next_chat_ids), ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO messages(id, sender_id, receiver_id, group_id, type, content, file_path, time, status, reply_to)
+  VALUES ((SELECT message_id FROM next_chat_ids), ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const findDownload = db.prepare(`
   SELECT m.type, m.file_path, m.content FROM messages m JOIN users u ON u.username = ?
-  WHERE m.id = ? AND m.type IN ('FILE', 'IMAGE', 'VIDEO', 'SOUND') AND (
+  WHERE m.id = ? AND m.type IN ('FILE', 'IMAGE', 'VIDEO', 'SOUND')
+    AND NOT EXISTS (SELECT 1 FROM hidden_messages h WHERE h.message_id = m.id AND h.user_id = u.id) AND (
     u.id IN (m.sender_id, m.receiver_id) OR EXISTS (
       SELECT 1 FROM group_members gm WHERE gm.group_id = m.group_id AND gm.user_id = u.id
     )
@@ -43,7 +45,7 @@ async function discardUpload(socket) {
   }
 }
 
-async function begin(socket, { name, size, to, groupId, from, type, voice = false }) {
+async function begin(socket, { name, size, to, groupId, from, type, voice = false, replyTo = null }) {
   if (!validFileName(name) || !Number.isSafeInteger(size) || size < 0) return invalid('Tên hoặc kích thước tệp không hợp lệ.');
   const format = mediaFormat(name);
   if ((type !== TYPES.FILE && format.type !== type) || typeof voice !== 'boolean' || (voice && format.type !== TYPES.SOUND)) {
@@ -56,13 +58,14 @@ async function begin(socket, { name, size, to, groupId, from, type, voice = fals
     receiverId = typeof to === 'string' ? userId.get(to) : null;
     if (!receiverId || to === from) return invalid('Tài khoản nhận tệp không hợp lệ.');
   }
+  if (!canReply(from, to, groupId, replyTo)) return invalid('Tin nhắn gốc không còn khả dụng trong hội thoại này.');
   await discardUpload(socket);
   const token = randomUUID();
   const dir = UPLOAD_DIRS[folders[format.type]];
   const temp = path.join(dir, token + '.part');
   await fs.mkdir(dir, { recursive: true });
   const handle = await fs.open(temp, 'wx');
-  uploads.set(socket, { token, temp, dir, format, voice, handle, name, size, from, to, groupId, receiverId, offset: 0 });
+  uploads.set(socket, { token, temp, dir, format, voice, handle, name, size, from, to, groupId, receiverId, replyTo, offset: 0 });
   completed.delete(socket);
   return { type: TYPES.FILE, token };
 }
@@ -101,7 +104,14 @@ async function handleFile(socket, packet) {
   const last = completed.get(socket);
   if (action === 'finish' && last && last.from === from && last.token === token) {
     const { groupId } = last.reply.message;
-    return groupId && !isMember(from, groupId) ? invalid('Nhóm không còn tồn tại.') : last.reply;
+    if (groupId && !isMember(from, groupId)) return invalid('Nhóm không còn tồn tại.');
+    const original = last.reply.message;
+    if (!findDownload.get(from, original.id)) return invalid('Tin nhắn tệp đã được thu hồi.');
+    const message = { ...original };
+    if (message.reply) message.reply = replyPreview(message.reply.id, from);
+    const summary = reactionSummary(message.id, from);
+    if (summary.reactions.length) Object.assign(message, summary);
+    return { ...last.reply, message };
   }
   const u = uploads.get(socket);
   if (!u || u.token !== token || u.from !== from) return invalid('Phiên gửi tệp không hợp lệ.');
@@ -143,27 +153,34 @@ async function handleFile(socket, packet) {
     if (u.voice) file.voice = true;
     const filename = path.join(u.dir, u.token);
     await fs.rename(u.temp, filename);
+    // Tệp .part đã chuyển tên và handle đã đóng. Không chờ I/O dọn tệp sau khi phát MSG.
+    uploads.delete(socket);
     if (u.groupId && !isMember(from, u.groupId)) {
       await fs.unlink(filename);
       return invalid('Nhóm không còn tồn tại.');
     }
+    if (!canReply(from, u.to, u.groupId, u.replyTo)) {
+      await fs.unlink(filename);
+      return invalid('Tin nhắn gốc không còn khả dụng trong hội thoại này.');
+    }
     let id;
     try {
       id = insertFile.run(userId.get(from), u.receiverId, u.groupId ?? null, u.format.type, JSON.stringify(file),
-        u.token, time, u.groupId ? 'sent' : 'queued').lastInsertRowid;
+        u.token, time, u.groupId ? 'sent' : 'queued', u.replyTo).lastInsertRowid;
     } catch (error) {
       await fs.unlink(filename);
       throw error;
     }
     const target = u.groupId ? { groupId: u.groupId } : { to: u.to, status: 'sent' };
     const message = { type: TYPES.MSG, id, from, time, file, ...target };
+    if (u.replyTo) message.reply = replyPreview(u.replyTo, from);
     const reply = { type: TYPES.FILE, message };
     completed.set(socket, { from, token, reply });
     if (u.groupId) notifyMembers(u.groupId, from, message);
     else deliverPrivate(u.to);
     return reply;
   } finally {
-    await discardUpload(socket);
+    if (uploads.get(socket) === u) await discardUpload(socket);
   }
 }
 

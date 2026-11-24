@@ -61,7 +61,7 @@ async function serve(socket) {
 }
 
 function createChatServer() {
-  cleanDeletedFiles().catch(error => console.warn('Lỗi dọn tệp nhóm:', error.message));
+  cleanDeletedFiles().catch(error => console.warn('Lỗi dọn tệp đính kèm:', error.message));
   return net.createServer({ allowHalfOpen: true }, serve);
 }
 

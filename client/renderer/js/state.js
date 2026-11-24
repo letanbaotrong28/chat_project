@@ -76,6 +76,10 @@ function createMessageReceipts(thread) {
   }
   return {
     track, decorate, clearView, reset,
+    removeBubble(bubble) {
+      observer.unobserve(bubble);
+      visible.delete(bubble);
+    },
     onPacket(packet, me) {
       if (packet.type === 'ACK' && Number.isSafeInteger(packet.id) && (packet.from === me || packet.to === me)) {
         apply(packet.id, packet.status);

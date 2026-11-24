@@ -47,11 +47,11 @@ async function transfer(event, operation) {
   }
 }
 
-ipcMain.handle('file:upload', (event, peer) => transfer(event, async (channel, progress) => {
+ipcMain.handle('file:upload', (event, peer, replyTo) => transfer(event, async (channel, progress) => {
   const choice = await dialog.showOpenDialog(window, { title: 'Chọn tệp để gửi', properties: ['openFile'] });
   if (choice.canceled) return {};
   channel.assertActive();
-  await uploadFile(channel, peer, choice.filePaths[0], progress);
+  await uploadFile(channel, peer, choice.filePaths[0], progress, false, replyTo);
   return { text: 'Đã gửi ' + path.basename(choice.filePaths[0]) + ' · SHA-256 khớp.' };
 }));
 
@@ -67,7 +67,7 @@ ipcMain.handle('file:download', (event, id) => transfer(event, async (channel, p
   return { text: 'Đã lưu ' + choice.filePath + ' · SHA-256 khớp.' };
 }));
 
-ipcMain.handle('voice:send', (event, peer, bytes) => transfer(event, async (channel, progress) => {
+ipcMain.handle('voice:send', (event, peer, bytes, replyTo) => transfer(event, async (channel, progress) => {
   if (!(bytes instanceof Uint8Array) || !bytes.length || bytes.length > MAX_VOICE_BYTES) {
     throw new Error('Bản ghi trống hoặc vượt quá 16 MiB.');
   }
@@ -75,7 +75,7 @@ ipcMain.handle('voice:send', (event, peer, bytes) => transfer(event, async (chan
   const filename = path.join(dir, 'Ghi-am-' + Date.now() + '.weba');
   try {
     await fs.writeFile(filename, bytes, { flag: 'wx' });
-    await uploadFile(channel, peer, filename, progress, true);
+    await uploadFile(channel, peer, filename, progress, true, replyTo);
     return { text: 'Đã gửi tin nhắn thoại.' };
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
@@ -89,9 +89,17 @@ ipcMain.handle('tcp:ping', event => {
   checkSender(event);
   network.ping();
 });
-ipcMain.handle('chat:message', (event, to, content) => {
+ipcMain.handle('chat:message', (event, to, content, replyTo) => {
   checkSender(event);
-  network.message(to, content);
+  network.message(to, content, replyTo);
+});
+ipcMain.handle('chat:react', (event, id, emoji) => {
+  checkSender(event);
+  network.react(id, emoji);
+});
+ipcMain.handle('chat:update', (event, id, action, content) => {
+  checkSender(event);
+  network.updateMessage(id, action, content);
 });
 ipcMain.handle('group:create', (event, name, members) => {
   checkSender(event);

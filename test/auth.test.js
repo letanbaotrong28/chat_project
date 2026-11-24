@@ -457,4 +457,133 @@ test('Tài khoản và phiên qua TCP', { timeout: 30000 }, async t => {
     await outsider.send({ ...login, username: 'Tam7' }, ping);
     assert.deepEqual(outsider.states.find(p => p.group?.id === withMembers.group.id)?.group, withMembers.group);
   });
+
+  await t.test('Sửa và thu hồi tin riêng, tin nhóm, quyền theo từng người và hàng đợi offline', async () => {
+    const sender = await connect(server.address().port, sockets);
+    const reader = await connect(server.address().port, sockets);
+    const third = await connect(server.address().port, sockets);
+    const update = (id, action, content) => ({ type: 'MSG_UPDATE', id, action, content, from: 'TacGia' });
+    assert.equal((await third.send(update(1, 'hide')))[0].code, 'NOT_LOGGED_IN');
+    for (const [client, username] of [[sender, 'TacGia'], [reader, 'BanDoc'], [third, 'BanNhom']]) {
+      await client.send({ ...register, username }, { ...login, username });
+    }
+    const direct = { type: 'MSG', to: 'BanDoc', content: 'Bản đầu' };
+    const [original] = await sender.send(direct);
+    await reader.nextReply();
+    const history = { type: 'HISTORY_REQ', peer: 'TacGia' };
+    for (const action of ['edit', 'hide', 'recall']) {
+      assert.equal((await third.send(update(original.id, action, 'giả')))[0].code, 'INVALID_INPUT');
+    }
+    for (const action of ['edit', 'recall']) {
+      assert.equal((await reader.send(update(original.id, action, 'giả')))[0].code, 'INVALID_INPUT');
+    }
+    for (const content of ['  ', 'a'.repeat(16385)]) {
+      assert.equal((await sender.send(update(original.id, 'edit', content)))[0].code, 'INVALID_INPUT');
+    }
+    const [edited] = await sender.send(update(original.id, 'edit', 'Bản đã sửa'));
+    assert.deepEqual(await reader.nextReply(), edited);
+    const [page] = await reader.send(history);
+    assert.deepEqual(page.messages, [{ ...original, content: edited.content, editedAt: edited.time }]);
+    await reader.send(update(original.id, 'hide'), update(original.id, 'hide'));
+    await sender.send(update(original.id, 'edit', 'Chỉ tác giả còn thấy'));
+    assert.equal((await reader.send(ping))[0].type, 'PING');
+    assert.deepEqual((await reader.send(history))[0].messages, []);
+    await reader.send(logout);
+    const [offline] = await sender.send(direct);
+    await sender.send(update(offline.id, 'recall'), update(offline.id, 'recall'));
+    assert.equal((await sender.send(update(offline.id, 'edit', 'thử lại')))[0].code, 'INVALID_INPUT');
+    await reader.send({ ...login, username: 'BanDoc' });
+    const backlog = await reader.nextReply();
+    assert.equal(backlog.id, offline.id);
+    assert.ok(backlog.recalledAt && backlog.backlog && !('content' in backlog));
+    assert.deepEqual((await reader.send(history))[0].messages.map(m => m.id), [offline.id]);
+
+    const [group] = await sender.send({ type: 'GROUP_CREATE', name: 'Ba người', members: ['BanDoc', 'BanNhom'] });
+    const groupId = group.group.id;
+    const [msg] = await third.send({ type: 'MSG', groupId, content: 'Nhóm' });
+    await sender.nextReply();
+    await reader.nextReply();
+    assert.equal((await sender.send(update(msg.id, 'recall')))[0].code, 'INVALID_INPUT');
+    await sender.send(update(msg.id, 'hide'));
+    const [changed] = await third.send(update(msg.id, 'edit', 'Nhóm mới'));
+    assert.deepEqual(await reader.nextReply(), changed);
+    const [removed] = await third.send(update(msg.id, 'recall'));
+    assert.deepEqual(await reader.nextReply(), removed);
+    const groupPage = { type: 'HISTORY_REQ', groupId };
+    assert.deepEqual((await sender.send(groupPage))[0].messages, []);
+    const [placeholder] = (await reader.send(groupPage))[0].messages;
+    assert.ok(placeholder.recalledAt && !('content' in placeholder) && !('editedAt' in placeholder));
+    await third.send(update(msg.id, 'hide'));
+    assert.deepEqual((await third.send(groupPage))[0].messages, []);
+  });
+
+  await t.test('Trả lời và cảm xúc đồng bộ đúng hội thoại, quyền xem và lịch sử', async () => {
+    const [an, binh, lan] = await Promise.all(Array.from({ length: 3 }, () => connect(server.address().port, sockets)));
+    const react = (id, emoji) => ({ type: 'REACTION', id, emoji, from: 'giả' });
+    assert.equal((await lan.send(react(1, '❤️')))[0].code, 'NOT_LOGGED_IN');
+    for (const [client, username] of [[an, 'AnR'], [binh, 'BinhR'], [lan, 'LanR']]) {
+      await client.send({ ...register, username }, { ...login, username });
+    }
+    const direct = { type: 'MSG', to: 'BinhR', content: 'Hẹn lúc tám giờ' };
+    const [base] = await an.send(direct);
+    await binh.nextReply();
+    for (const [client, request] of [[lan, react(base.id, '👍')], [lan, { ...direct, replyTo: base.id }],
+      [an, { ...direct, to: 'LanR', replyTo: base.id }], [an, react(base.id, 'khác')]]) {
+      assert.equal((await client.send(request))[0].code, 'INVALID_INPUT');
+    }
+    async function reaction(actor, other, emoji) {
+      const [ack] = await actor.send(react(base.id, emoji));
+      assert.deepEqual(await other.nextReply(), ack);
+      return ack.reactions;
+    }
+    await reaction(binh, an, '❤️');
+    assert.deepEqual(await reaction(binh, an, '❤️'), [{ emoji: '❤️', count: 1 }]);
+    assert.deepEqual(await reaction(an, binh, '❤️'), [{ emoji: '❤️', count: 2 }]);
+    assert.equal((await reaction(binh, an, '👍')).length, 2);
+    const page = { type: 'HISTORY_REQ', peer: 'AnR' };
+    assert.equal((await binh.send(page))[0].messages[0].myReaction, '👍');
+    assert.deepEqual(await reaction(an, binh, null), [{ emoji: '👍', count: 1 }]);
+
+    const [answer] = await binh.send({ type: 'MSG', to: 'AnR', content: 'Đồng ý', replyTo: base.id });
+    assert.deepEqual(answer.reply, { id: base.id, from: 'AnR', text: direct.content });
+    assert.deepEqual(await an.nextReply(), answer);
+    await an.send({ type: 'MSG_UPDATE', action: 'edit', id: base.id, content: 'Hẹn lúc chín giờ' });
+    await binh.nextReply();
+    assert.equal((await binh.send(page))[0].messages.at(-1).reply.text, 'Hẹn lúc chín giờ');
+    await binh.send({ type: 'MSG_UPDATE', action: 'hide', id: base.id });
+    assert.deepEqual((await binh.send(page))[0].messages[0].reply, { id: base.id });
+    assert.equal((await binh.send(react(base.id, '😂')))[0].code, 'INVALID_INPUT');
+    await binh.send(logout);
+    const [late] = await an.send({ ...direct, content: 'Hẹn gặp lại', replyTo: base.id });
+    await binh.send({ ...login, username: 'BinhR' });
+    const backlog = await binh.nextReply();
+    assert.ok(backlog.backlog && backlog.id === late.id);
+    assert.deepEqual(backlog.reply, { id: base.id });
+
+    const [group] = await an.send({ type: 'GROUP_CREATE', name: 'Thảo luận', members: ['BinhR', 'LanR'] });
+    const groupId = group.group.id;
+    const sendGroup = { type: 'MSG', groupId, content: 'Tin trong nhóm' };
+    assert.equal((await an.send({ ...sendGroup, replyTo: base.id }))[0].code, 'INVALID_INPUT');
+    const [topic] = await an.send(sendGroup);
+    await binh.nextReply();
+    await lan.nextReply();
+    await binh.send({ type: 'MSG_UPDATE', action: 'hide', id: topic.id });
+    const [groupReply] = await lan.send({ ...sendGroup, replyTo: topic.id });
+    assert.deepEqual((await an.nextReply()).reply, groupReply.reply);
+    assert.deepEqual((await binh.nextReply()).reply, { id: topic.id });
+    const [groupReaction] = await binh.send(react(groupReply.id, '🎉'));
+    assert.deepEqual(await an.nextReply(), groupReaction);
+    assert.deepEqual(await lan.nextReply(), groupReaction);
+    await an.send({ type: 'MSG_UPDATE', action: 'recall', id: topic.id });
+    await lan.nextReply();
+    assert.equal((await lan.send({ ...sendGroup, replyTo: topic.id }))[0].code, 'INVALID_INPUT');
+    const [restored] = await lan.send({ type: 'HISTORY_REQ', groupId });
+    assert.deepEqual(restored.messages.at(-1).reply, { id: topic.id });
+    assert.deepEqual(restored.messages.at(-1).reactions, [{ emoji: '🎉', count: 1 }]);
+    await lan.send({ type: 'MSG_UPDATE', action: 'recall', id: groupReply.id });
+    await an.nextReply();
+    await binh.nextReply();
+    assert.equal((await an.send(react(groupReply.id, '👍')))[0].code, 'INVALID_INPUT');
+    assert.equal(db.prepare('SELECT COUNT(*) FROM message_reactions WHERE message_id=?').pluck().get(groupReply.id), 0);
+  });
 });

@@ -121,7 +121,9 @@ function createNetwork(notify) {
     createGroup: (name, members = []) => send({ type: TYPES.GROUP_CREATE, name, members }),
     addMember: (groupId, username) => send({ type: TYPES.GROUP_ADD, groupId, username }),
     deleteGroup: groupId => send({ type: TYPES.GROUP_DELETE, groupId }),
-    message: (to, content) => send({ type: TYPES.MSG, ...(typeof to === 'number' ? { groupId: to } : { to }), content }),
+    message: (to, content, replyTo) => send({ type: TYPES.MSG, ...(typeof to === 'number' ? { groupId: to } : { to }), content, replyTo }),
+    react: (id, emoji) => send({ type: TYPES.REACTION, id, emoji }),
+    updateMessage: (id, action, content) => send({ type: TYPES.MSG_UPDATE, id, action, content }),
     acknowledge: (id, status) => send({ type: TYPES.ACK, id, status }),
     history: (peer, beforeId, requestId) => send({
       type: TYPES.HISTORY_REQ, ...(typeof peer === 'number' ? { groupId: peer } : { peer }), beforeId, requestId
