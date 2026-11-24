@@ -442,5 +442,19 @@ test('Tài khoản và phiên qua TCP', { timeout: 30000 }, async t => {
     assert.equal((await owner.send(deletion))[0].code, 'INVALID_INPUT');
     const [newMessage] = await owner.send({ ...msg, groupId: replacement.group.id });
     assert.ok(newMessage.id > offline.at(-1).id);
+
+    const countGroups = db.prepare('SELECT COUNT(*) FROM groups').pluck();
+    const before = countGroups.get();
+    for (const members of ['Lan7', ['Lan7', 42], ['Lan7', 'khong-tontai']]) {
+      assert.equal((await owner.send({ ...create, members }))[0].code, 'INVALID_INPUT');
+      assert.equal(countGroups.get(), before);
+    }
+    await outsider.send(logout);
+    const [withMembers] = await owner.send({ ...create, members: ['An7', 'Lan7', 'Lan7', 'Tam7'] });
+    assert.equal(withMembers.group.memberCount, 3);
+    await member.send(ping);
+    assert.deepEqual(member.states.find(p => p.group?.id === withMembers.group.id)?.group, withMembers.group);
+    await outsider.send({ ...login, username: 'Tam7' }, ping);
+    assert.deepEqual(outsider.states.find(p => p.group?.id === withMembers.group.id)?.group, withMembers.group);
   });
 });

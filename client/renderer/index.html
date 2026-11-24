@@ -6,6 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src chat-media:; media-src chat-media: blob:; form-action 'none'; base-uri 'none'">
   <title>Chat LAN</title>
   <link rel="stylesheet" href="style.css">
+  <script defer src="js/ui.js"></script>
   <script defer src="js/auth.js"></script>
   <script defer src="js/contacts.js"></script>
   <script defer src="js/chat.js"></script>
@@ -18,15 +19,42 @@
   <script defer src="app.js"></script>
 </head>
 <body>
+  <svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20.5 11.2a7.7 7.7 0 0 1-7.8 7.7H9l-5 2 1.2-4.6A7.7 7.7 0 1 1 20.5 11.2Z"/><path d="M8.5 10h7M8.5 13.5H13"/></symbol>
+      <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a6 6 0 0 1 12 0v1M16 5.3a3 3 0 0 1 0 5.5M18 14a4.5 4.5 0 0 1 3 4.4"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-add" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1a6 6 0 0 1 12 0v1M18.5 8v6M15.5 11h6"/></symbol>
+      <symbol id="i-exit" viewBox="0 0 24 24"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M10 12h11m-4-4 4 4-4 4"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13M10 10.5v6m4-6v6"/></symbol>
+      <symbol id="i-clip" viewBox="0 0 24 24"><path d="m8.5 12 6.3-6.3a3.4 3.4 0 1 1 4.8 4.8l-8.8 8.8a5.1 5.1 0 0 1-7.2-7.2l9-9M7 14l-.2.2a1.7 1.7 0 1 0 2.4 2.4l7.7-7.7"/></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3m-3 0h6"/></symbol>
+      <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4 4 0 0 0 7 0M9 9h.01M15 9h.01"/></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24"><path d="m21 3-7 18-3.6-7.4L3 10l18-7ZM10.4 13.6 21 3"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9m5 0h2M4 17h2m5 0h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m5 7 5 5-5 5m8 0h6"/></symbol>
+    </defs>
+  </svg>
   <main>
-    <header><h1>Chat LAN</h1><span id="status" role="status">Chưa kết nối</span></header>
+    <header class="app-header">
+      <div class="brand"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-chat"></use></svg></span><h1>Chat LAN</h1></div>
+      <span id="status" role="status">Chưa kết nối</span>
+      <div id="session" hidden>
+        <span class="session-user"><span id="session-avatar"></span><strong id="session-name"></strong></span>
+        <button id="open-create" type="button" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Tạo nhóm</button>
+        <button id="logout" class="secondary" type="button"><svg class="icon" aria-hidden="true"><use href="#i-exit"></use></svg>Đăng xuất</button>
+      </div>
+    </header>
+    <details id="connection-settings" class="utility" open>
+      <summary><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg>Kết nối máy chủ</summary>
     <form id="connection">
       <label>Địa chỉ IP của Server<input id="host" value="127.0.0.1" required spellcheck="false"></label>
       <label>Cổng<input id="port" type="number" min="1" max="65535" value="5000" required></label>
       <button id="connect">Kết nối</button>
     </form>
     <p id="connection-error" role="alert" hidden></p>
-    <section class="account" aria-labelledby="account-title">
+    </details>
+    <section id="account" class="account" aria-labelledby="account-title">
       <h2 id="account-title">Tài khoản</h2>
       <form id="auth-form">
         <fieldset id="auth-mode">
@@ -39,10 +67,6 @@
         <small id="password-rule" hidden>Ít nhất 8 ký tự, tối đa 72 byte UTF-8.</small>
         <button id="auth-submit" disabled>Đăng nhập</button>
       </form>
-      <div id="session" hidden>
-        <div><span class="session-label">Đang đăng nhập</span><strong id="session-name"></strong></div>
-        <button id="logout" type="button">Đăng xuất</button>
-      </div>
       <p id="auth-feedback" role="status">Kết nối đến Server để sử dụng tài khoản.</p>
     </section>
     <div class="workspace">
@@ -56,30 +80,15 @@
         <section class="group-panel" aria-labelledby="groups-title">
           <h2 id="groups-title">Nhóm của tôi</h2>
           <ul id="groups-list"></ul>
-          <form id="group-create">
-            <label>Tên nhóm<input id="group-name" required></label>
-            <button>Tạo nhóm</button>
-          </form>
-          <p id="group-feedback" role="status"></p>
+          <p id="groups-empty" class="muted">Chưa có nhóm.</p>
         </section>
       </section>
       <section id="chat" class="account" aria-labelledby="chat-title" hidden>
-        <h2 id="chat-title">Hội thoại</h2>
-        <p id="chat-note">Chọn người dùng hoặc nhóm để mở hội thoại.</p>
-        <form id="group-add" hidden>
-          <label>Tài khoản cần thêm<input id="group-username" required spellcheck="false"></label>
-          <button>Thêm thành viên</button>
-        </form>
-        <p id="member-feedback" role="status" hidden></p>
-        <button type="button" id="group-delete" class="danger-outline" hidden>Xóa nhóm</button>
-        <dialog id="group-delete-dialog" aria-labelledby="group-delete-title" aria-describedby="group-delete-note">
-          <h2 id="group-delete-title">Xóa nhóm?</h2>
-          <p id="group-delete-note">Tất cả thành viên sẽ mất quyền truy cập. Tin nhắn và tệp của nhóm trên server sẽ bị xóa vĩnh viễn.</p>
-          <div class="dialog-actions">
-            <button type="button" id="group-delete-cancel" autofocus>Hủy</button>
-            <button type="button" id="group-delete-confirm" class="danger-outline">Xóa nhóm</button>
-          </div>
-        </dialog>
+        <div class="chat-heading">
+          <span id="chat-avatar"></span>
+          <div class="chat-identity"><h2 id="chat-title">Hội thoại</h2><p id="chat-note"></p></div>
+          <button id="open-add" type="button" class="secondary" title="Thêm thành viên" aria-haspopup="dialog" hidden><svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg><span>Thêm thành viên</span></button>
+        </div>
         <div id="history-tools" hidden>
           <button id="load-older" type="button">Tải tin cũ hơn</button>
           <span id="history-note" role="status"></span>
@@ -89,12 +98,11 @@
           <label for="message-text" class="sr-only">Nội dung tin nhắn</label>
           <textarea id="message-text" rows="2" placeholder="Nhập tin nhắn…" required></textarea>
           <div class="compose-actions">
-            <button type="button" id="attach-file">Gửi tệp</button>
-            <button type="button" id="record-voice">Ghi âm</button>
-            <button id="emoji-toggle" type="button" aria-expanded="false" aria-controls="emoji-list" disabled><span aria-hidden="true">☺</span> Emoji</button>
+            <button type="button" class="icon-button" id="attach-file" title="Gửi tệp" aria-label="Gửi tệp"><svg class="icon" aria-hidden="true"><use href="#i-clip"></use></svg></button>
+            <button type="button" class="icon-button" id="record-voice" title="Ghi âm" aria-label="Ghi âm"><svg class="icon" aria-hidden="true"><use href="#i-mic"></use></svg></button>
+            <button id="emoji-toggle" type="button" class="icon-button" title="Chọn emoji" aria-label="Chọn emoji" aria-expanded="false" aria-controls="emoji-list" disabled><svg class="icon" aria-hidden="true"><use href="#i-smile"></use></svg></button>
             <div id="emoji-list" role="toolbar" aria-label="Chọn emoji" hidden></div>
-            <small>Shift + Enter để xuống dòng</small>
-            <button id="send-message" type="submit">Gửi</button>
+            <button id="send-message" type="submit">Gửi <svg class="icon" aria-hidden="true"><use href="#i-send"></use></svg></button>
           </div>
           <div id="voice-panel" hidden>
             <span id="voice-status" role="status"></span>
@@ -113,13 +121,52 @@
         </div>
       </section>
     </div>
-    <details>
-      <summary>Nhật ký kết nối</summary>
+    <p id="group-feedback" role="status"></p>
+    <details id="connection-log" class="utility">
+      <summary><svg class="icon" aria-hidden="true"><use href="#i-terminal"></use></svg>Nhật ký kết nối</summary>
       <button id="ping" disabled>Gửi PING</button>
       <div id="log" role="log" aria-live="polite" tabindex="0">
         <p id="empty">Gói PING đầu tiên sẽ được gửi khi kết nối thành công.</p>
       </div>
     </details>
   </main>
+  <dialog id="group-create-dialog" aria-labelledby="group-create-title">
+    <form id="group-create">
+      <div class="dialog-heading"><span class="dialog-mark"><svg class="icon" aria-hidden="true"><use href="#i-group"></use></svg></span><h2 id="group-create-title">Tạo nhóm</h2></div>
+      <label for="group-name">Tên nhóm</label>
+      <input id="group-name" placeholder="Nhập tên nhóm" required autofocus>
+      <fieldset class="member-field">
+        <legend>Chọn thành viên <span id="selected-count"></span></legend>
+        <div id="member-options" class="member-options"></div>
+        <p id="members-empty" class="muted" hidden>Chưa có người dùng khác.</p>
+      </fieldset>
+      <p id="create-feedback" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" data-close>Hủy</button>
+        <button type="submit"><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Tạo nhóm</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="group-add-dialog" aria-labelledby="group-add-title">
+    <form id="group-add">
+      <div class="dialog-heading"><span class="dialog-mark"><svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg></span><h2 id="group-add-title">Thêm thành viên</h2></div>
+      <label for="group-username">Tên tài khoản</label>
+      <input id="group-username" list="user-suggestions" required spellcheck="false" autocomplete="off" autofocus>
+      <datalist id="user-suggestions"></datalist>
+      <p id="member-feedback" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" data-close>Hủy</button>
+        <button type="submit">Thêm thành viên</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="group-delete-dialog" aria-labelledby="group-delete-title" aria-describedby="group-delete-note">
+    <div class="dialog-heading"><span class="dialog-mark danger"><svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg></span><h2 id="group-delete-title">Xóa nhóm?</h2></div>
+    <p id="group-delete-note">Tin nhắn và tệp của nhóm trên server sẽ bị xóa vĩnh viễn đối với tất cả thành viên.</p>
+    <div class="dialog-actions">
+      <button type="button" id="group-delete-cancel" class="secondary" data-close autofocus>Hủy</button>
+      <button type="button" id="group-delete-confirm" class="destructive">Xóa nhóm</button>
+    </div>
+  </dialog>
 </body>
 </html>

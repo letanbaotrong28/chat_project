@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('tcp', {
   connect: (host, port) => ipcRenderer.invoke('tcp:connect', host, port),
   ping: () => ipcRenderer.invoke('tcp:ping'),
-  createGroup: name => ipcRenderer.invoke('group:create', name),
+  createGroup: (name, members) => ipcRenderer.invoke('group:create', name, members),
   addMember: (groupId, username) => ipcRenderer.invoke('group:add', groupId, username),
   deleteGroup: groupId => ipcRenderer.invoke('group:delete', groupId),
   message: (to, content) => ipcRenderer.invoke('chat:message', to, content),

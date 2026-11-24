@@ -93,6 +93,7 @@ function initFileTransfers(selectedPeer) {
   }
   function leaveChat() {
     recorder.reset();
+    if (!active) panel.hidden = true;
     for (const player of document.querySelectorAll('#thread audio, #thread video')) player.pause();
   }
   return { decorate, reset, leaveChat };

@@ -10,7 +10,7 @@ const chat = initChat(() => {
   groups.render();
 });
 const contacts = initContacts(chat);
-const groups = initGroups(chat);
+const groups = initGroups(chat, contacts);
 const labels = { connecting: 'Đang kết nối', connected: 'Đã kết nối', disconnected: 'Đã ngắt kết nối' };
 
 function logLine(label, message, kind) {

@@ -118,7 +118,7 @@ function createNetwork(notify) {
     register: (name, password) => authenticate(TYPES.REGISTER, name, password),
     login: (name, password) => authenticate(TYPES.LOGIN, name, password),
     logout: () => send({ type: TYPES.LOGOUT }),
-    createGroup: name => send({ type: TYPES.GROUP_CREATE, name }),
+    createGroup: (name, members = []) => send({ type: TYPES.GROUP_CREATE, name, members }),
     addMember: (groupId, username) => send({ type: TYPES.GROUP_ADD, groupId, username }),
     deleteGroup: groupId => send({ type: TYPES.GROUP_DELETE, groupId }),
     message: (to, content) => send({ type: TYPES.MSG, ...(typeof to === 'number' ? { groupId: to } : { to }), content }),

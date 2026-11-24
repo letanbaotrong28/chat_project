@@ -1,6 +1,7 @@
 function initChat(onSelect) {
   const panel = document.querySelector('#chat');
   const title = document.querySelector('#chat-title');
+  const avatar = document.querySelector('#chat-avatar');
   const note = document.querySelector('#chat-note');
   const thread = document.querySelector('#thread');
   const form = document.querySelector('#compose');
@@ -58,10 +59,17 @@ function initChat(onSelect) {
 
   function refresh() {
     panel.hidden = !me;
+    const kind = selectedGroup ? 'group' : peer ? 'user' : 'chat';
+    const identity = kind + ':' + (peer ?? '');
+    if (avatar.dataset.identity !== identity) {
+      avatar.replaceChildren(chatAvatar(String(peer ?? ''), kind));
+      avatar.dataset.identity = identity;
+    }
+    panel.classList.toggle('chat-empty', !peer);
     title.textContent = selectedGroup?.name || peer || 'Hội thoại';
     thread.hidden = form.hidden = !peer;
     if (selectedGroup) note.textContent = selectedGroup.memberCount + ' thành viên · Chủ nhóm: ' + selectedGroup.owner;
-    else if (peer) note.textContent = online ? 'Online' : 'Offline · Tin sẽ được chuyển khi người này đăng nhập.';
+    else if (peer) note.textContent = online ? 'Đang trực tuyến' : 'Ngoại tuyến · Tin sẽ được chuyển khi người này đăng nhập.';
     else note.textContent = 'Chọn người dùng hoặc nhóm để mở hội thoại.';
     input.disabled = !peer;
     input.readOnly = Boolean(peer && pending?.to === peer);

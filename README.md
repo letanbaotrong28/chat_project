@@ -167,19 +167,19 @@ Client người nhận gửi gói `ACK` theo mã tin, ví dụ `{"type":"ACK","i
 ### Phần 7. Thử chat nhóm
 
 1. Chạy một Server và hai Client theo mục D. Đăng nhập bằng hai tài khoản đã đăng ký, ví dụ An và Bình.
-2. Ở cửa sổ của An, nhập `Nhóm đồ án` trong **Nhóm của tôi** rồi bấm **Tạo nhóm**. Hội thoại mới mở ra, An là chủ nhóm.
-3. Nhập tên tài khoản của Bình ở ô **Tài khoản cần thêm** rồi bấm **Thêm thành viên**. Nếu Bình đang online, nhóm xuất hiện ngay trong danh sách của Bình. Nếu Bình đang offline, nhóm xuất hiện ở lần đăng nhập tiếp theo.
+2. Ở cửa sổ của An, bấm **Tạo nhóm** cạnh **Đăng xuất**, nhập `Nhóm đồ án`, tích chọn Bình rồi bấm **Tạo nhóm**. Hội thoại mở ra và xuất hiện trong **Nhóm của tôi**. Bình nhìn thấy nhóm ngay khi đang online hoặc ở lần đăng nhập tiếp theo.
+3. Nếu muốn mời thêm người sau đó, An mở nhóm và bấm **Thêm thành viên** ở góc phải phía trên hội thoại. Nhập hoặc chọn tên tài khoản rồi xác nhận.
 4. An gửi tin vào nhóm. Bình bấm **Nhóm đồ án**, đọc tin rồi gửi trả lời. Mỗi tin hiển thị người gửi và thời gian. Khi hai nhóm trùng tên, dùng số `#` dưới tên để phân biệt.
 5. Cho Bình đăng xuất, gửi thêm một tin từ An rồi đăng nhập lại bằng Bình. Mở nhóm để đọc tin đã bỏ lỡ. Với hơn 10 tin, bấm **Tải tin cũ hơn** để đọc trang trước.
-6. Để thử xóa, dùng một nhóm thử nghiệm. Chủ nhóm mở hội thoại, bấm **Xóa nhóm**, kiểm tra tên nhóm rồi xác nhận. Nhóm biến mất ở tất cả thành viên. Server xóa lịch sử và tệp đính kèm của nhóm. Các bản đã tải về máy vẫn nằm ở nơi người dùng đã lưu.
+6. Để thử xóa, dùng một nhóm thử nghiệm. Chủ nhóm bấm biểu tượng thùng rác cạnh tên nhóm ở cột trái, kiểm tra tên và mã nhóm rồi xác nhận. Nhóm biến mất ở tất cả thành viên. Server xóa lịch sử và tệp đính kèm của nhóm. Các bản đã tải về máy vẫn nằm ở nơi người dùng đã lưu.
 
 Chủ nhóm có quyền thêm thành viên. Mỗi thành viên có thể gửi tin và xem toàn bộ lịch sử, kể cả tin trước thời điểm được thêm. Server kiểm tra thành viên theo tài khoản đã đăng nhập cho mỗi lần gửi và tải lịch sử. Gói `MSG` và `HISTORY_REQ` dùng `groupId` để xác định nhóm. Dữ liệu dùng các bảng `groups`, `group_members` và `messages` trong database hiện tại.
 
 ### Phần 8. Thử bảng chọn emoji
 
-1. Đăng nhập hai tài khoản trên hai Client và mở một cuộc chat riêng. Gõ `Chào bạn`, đặt con trỏ sau chữ `Chào`, bấm **Emoji** rồi chọn 👋. Ô soạn tin sẽ hiện `Chào👋 bạn`. Bấm **Gửi** và kiểm tra nội dung ở Client còn lại.
+1. Đăng nhập hai tài khoản trên hai Client và mở một cuộc chat riêng. Gõ `Chào bạn`, đặt con trỏ sau chữ `Chào`, bấm biểu tượng mặt cười rồi chọn 👋. Ô soạn tin sẽ hiện `Chào👋 bạn`. Bấm **Gửi** và kiểm tra nội dung ở Client còn lại.
 2. Trong chat nhóm, bôi đen một từ rồi chọn emoji để thay thế từ đó. Bạn cũng có thể gửi một tin chỉ gồm emoji, chẳng hạn `❤️🧑‍💻`. Đăng xuất, đăng nhập lại và mở lịch sử để kiểm tra dấu tiếng Việt và emoji ghép.
-3. Để dùng bàn phím, nhấn **Tab** đến nút **Emoji**, nhấn **Enter** để mở bảng, dùng các phím mũi tên để di chuyển và **Enter** để chèn. **Esc** đóng bảng và giữ nguyên bản nháp.
+3. Để dùng bàn phím, nhấn **Tab** đến nút **Chọn emoji**, nhấn **Enter** để mở bảng, dùng các phím mũi tên để di chuyển và **Enter** để chèn. **Esc** đóng bảng và giữ nguyên bản nháp.
 
 ### Phần 9. Gửi và tải tệp
 

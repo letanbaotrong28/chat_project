@@ -17,15 +17,18 @@ function initContacts(chat) {
     }
   }
 
-  function render() {
-    panel.hidden = currentUser === null;
-    const sorted = Array.from(users).sort(([a, first], [b, second]) => {
+  function entries() {
+    return Array.from(users).sort(([a, first], [b, second]) => {
       if (first !== second) return first === 'online' ? -1 : 1;
       return byName.compare(a, b);
     });
+  }
+
+  function render() {
+    panel.hidden = currentUser === null;
     const rows = document.createDocumentFragment();
     let online = 0;
-    for (const [username, status] of sorted) {
+    for (const [username, status] of entries()) {
       const row = document.createElement('li');
       const button = document.createElement('button');
       button.type = 'button';
@@ -39,19 +42,19 @@ function initContacts(chat) {
       name.textContent = username;
       row.dataset.status = status;
       badge.className = 'presence';
-      badge.textContent = status === 'online' ? 'Online' : 'Offline';
+      badge.textContent = status === 'online' ? 'Trực tuyến' : 'Ngoại tuyến';
       if (status === 'online') online++;
-      button.append(name, badge);
+      name.className = 'row-name';
+      button.className = 'conversation-row';
+      button.append(chatAvatar(username), name, badge);
       if (chat.hasUnread(username)) {
-        const unread = document.createElement('small');
-        unread.textContent = 'Tin mới';
-        button.append(unread);
+        badge.append(' · Tin mới');
       }
       row.append(button);
       rows.append(row);
     }
     list.replaceChildren(rows);
-    count.textContent = loading ? '' : online + ' đang online';
+    count.textContent = loading ? '' : online + ' online';
     note.textContent = loading ? 'Đang tải danh sách…' : 'Chưa có người dùng khác.';
     note.hidden = !loading && users.size > 0;
   }
@@ -78,5 +81,5 @@ function initContacts(chat) {
     } else if (event.kind !== 'received' || packet.type !== 'MSG') return;
     render();
   }
-  return { onEvent, render };
+  return { onEvent, render, entries };
 }

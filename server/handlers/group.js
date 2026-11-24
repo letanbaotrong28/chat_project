@@ -44,20 +44,31 @@ function failure(content, code = ERROR_CODES.INVALID_INPUT) {
   return { type: TYPES.ERROR, code, content };
 }
 
-const createWithOwner = db.transaction((name, from) => {
+const createWithOwner = db.transaction((name, from, members) => {
+  const ids = members.map(username => userId.get(username));
+  if (ids.some(id => !id)) return null;
   const ownerId = userId.get(from);
   const id = insertGroup.run(name, ownerId).lastInsertRowid;
   insertMember.run(id, ownerId);
+  for (const memberId of ids) insertMember.run(id, memberId);
   return findGroup.get(from, id);
 });
 
-function createGroup(_socket, { from, name }) {
+function createGroup(_socket, { from, name, members = [], time }) {
   if (!from) return failure('Hãy đăng nhập để tạo nhóm.', ERROR_CODES.NOT_LOGGED_IN);
   const title = typeof name === 'string' ? name.trim().normalize('NFC') : '';
   if (!title || [...title].length > 80 || /[\p{Cc}\p{Zl}\p{Zp}]/u.test(title)) {
     return failure('Tên nhóm cần từ 1 đến 80 ký tự và nằm trên một dòng.');
   }
-  return { type: TYPES.GROUP_CREATE, group: createWithOwner(title, from) };
+  if (!Array.isArray(members) || members.some(member => typeof member !== 'string')) {
+    return failure('Danh sách thành viên không hợp lệ.');
+  }
+  const invitees = new Set(members.map(member => member.trim().normalize('NFC')));
+  invitees.delete(from);
+  const group = createWithOwner(title, from, [...invitees]);
+  if (!group) return failure('Một tài khoản đã chọn không tồn tại. Hãy kiểm tra lại danh sách.');
+  notifyUsers(invitees, { type: TYPES.STATE, kind: 'group', group, from, time });
+  return { type: TYPES.GROUP_CREATE, group };
 }
 
 function notifyMembers(groupId, from, packet) {

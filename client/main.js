@@ -93,9 +93,9 @@ ipcMain.handle('chat:message', (event, to, content) => {
   checkSender(event);
   network.message(to, content);
 });
-ipcMain.handle('group:create', (event, name) => {
+ipcMain.handle('group:create', (event, name, members) => {
   checkSender(event);
-  network.createGroup(name);
+  network.createGroup(name, members);
 });
 ipcMain.handle('group:add', (event, groupId, username) => {
   checkSender(event);
@@ -125,8 +125,8 @@ for (const action of ['register', 'login', 'logout']) {
 
 function openWindow() {
   window = new BrowserWindow({
-    title: 'Chat LAN', width: 820, height: 740, minWidth: 420, minHeight: 440,
-    backgroundColor: '#f4f7f6', autoHideMenuBar: true,
+    title: 'Chat LAN', width: 1080, height: 790, minWidth: 420, minHeight: 440,
+    backgroundColor: '#f4f5fa', autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: true

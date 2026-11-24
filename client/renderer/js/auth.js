@@ -27,6 +27,7 @@ function initAccountForm() {
     document.querySelector('#password-rule').hidden = !registering;
     form.hidden = Boolean(sessionName.textContent);
     session.hidden = !form.hidden;
+    document.body.classList.toggle('signed-in', form.hidden);
   }
 
   modes.addEventListener('change', () => {
@@ -60,6 +61,7 @@ function initAccountForm() {
   function onEvent(event) {
     if (event.kind === 'state') {
       connected = event.state === 'connected';
+      if (event.state === 'disconnected') document.querySelector('#connection-settings').open = true;
       pending = null;
       sessionName.textContent = '';
       password.value = '';
@@ -78,6 +80,8 @@ function initAccountForm() {
           password.focus();
         } else if (packet.type === 'LOGIN') {
           sessionName.textContent = packet.from;
+          document.querySelector('#session-avatar').replaceChildren(chatAvatar(packet.from));
+          document.querySelector('#connection-settings').open = false;
           message('');
         } else {
           sessionName.textContent = '';
