@@ -6,9 +6,10 @@ const path = require('node:path');
 const net = require('node:net');
 const { once } = require('node:events');
 const { encode, createPacketReader } = require('../common/protocol');
+const testHost = process.env.CHAT_TEST_HOST || '127.0.0.1';
 
 async function connect(port, sockets) {
-  const socket = net.createConnection(port, '127.0.0.1');
+  const socket = net.createConnection(port, testHost);
   sockets.add(socket);
   await once(socket, 'connect');
   socket.setTimeout(10000, () => socket.destroy(new Error('Hết thời gian chờ phản hồi.')));
@@ -76,7 +77,7 @@ test('Tài khoản và phiên qua TCP', { timeout: 30000 }, async t => {
     fs.unlinkSync(path.join(dir, 'chat.db'));
     fs.rmdirSync(dir);
   });
-  server.listen(0, '127.0.0.1');
+  server.listen(0, testHost);
   await once(server, 'listening');
   const a = await connect(server.address().port, sockets);
   const b = await connect(server.address().port, sockets);

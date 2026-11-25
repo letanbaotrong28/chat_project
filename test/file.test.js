@@ -10,6 +10,7 @@ const { createNetwork } = require('../client/network');
 const { uploadFile, fileInfo, downloadFile } = require('../client/fileTransfer');
 const { createMediaPreview } = require('../client/mediaPreview');
 const { FILE_CHUNK_BYTES } = require('../common/constants');
+const testHost = process.env.CHAT_TEST_HOST || '127.0.0.1';
 
 test('Truyền tệp qua TCP và ghép trên đĩa', { timeout: 30000 }, async t => {
   t.mock.method(console, 'log', () => {});
@@ -34,7 +35,7 @@ test('Truyền tệp qua TCP và ghép trên đĩa', { timeout: 30000 }, async t
     db.close();
     await fs.rm(dir, { recursive: true, force: true });
   });
-  server.listen(0, '127.0.0.1');
+  server.listen(0, testHost);
   await once(server, 'listening');
   const password = 'tep-demo-123';
   const bcrypt = require(require.resolve('bcryptjs', { paths: [path.resolve(__dirname, '../server')] }));
@@ -53,7 +54,7 @@ test('Truyền tệp qua TCP và ghép trên đĩa', { timeout: 30000 }, async t
       send();
       return (await received)[0];
     }
-    await reply('connected', () => client.connect('127.0.0.1', server.address().port));
+    await reply('connected', () => client.connect(testHost, server.address().port));
     await reply('LOGIN', () => client.login(name, password));
     return { client, events, reply, channel: client.fileChannel() };
   }
